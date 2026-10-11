@@ -1,0 +1,106 @@
+# OS
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Editors / IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.user
+*.userosscache
+*.sln.docstates
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node / frontend (QiCardMeshApp)
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
+.yarn/
+.pnpm-store/
+.turbo/
+.cache/
+coverage/
+.nyc_output/
+
+# Rust / Cargo / Tauri (QiCardMeshApp/src-tauri, agents)
+target/
+**/gen/schemas/
+*.pdb
+*.exe
+*.dll
+*.so
+*.dylib
+*.rlib
+
+# Python / uv / Django (Server)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+build/
+wheels/
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+media/
+staticfiles/
+
+# Keep lockfiles for reproducible installs
+# (uv.lock, package-lock.json, Cargo.lock are tracked when present)
+
+# Misc tooling
+*.tmp
+*.temp
+*.bak
+*.orig
+.history/
+.direnv/
+.fleet/
+.claude/
+.cursor/

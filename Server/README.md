@@ -1,0 +1,152 @@
+# QiCardMesh Server
+
+Django 后端服务。开发阶段使用 **SQLite**，依赖与虚拟环境由 **uv** 管理。
+
+## 环境要求
+
+- [uv](https://docs.astral.sh/uv/)（推荐最新版）
+- Python 3.12+（首次执行 `uv sync` 时会自动下载匹配版本）
+
+## 目录结构
+
+```text
+Server/
+├── config/           # Django 项目配置（settings / urls / wsgi / asgi）
+├── manage.py         # Django 管理入口
+├── pyproject.toml    # 项目依赖（uv）
+├── uv.lock           # 锁定依赖版本
+├── .python-version   # 指定 Python 版本
+├── db.sqlite3        # 迁移后生成的 SQLite 数据库（已 gitignore）
+└── README.md
+```
+
+## 一、安装依赖
+
+在 `Server` 目录下执行：
+
+```powershell
+cd Server
+uv sync
+```
+
+会创建 `.venv` 并安装 `pyproject.toml` / `uv.lock` 中的依赖（含 Django）。
+
+## 二、数据库迁移（SQLite）
+
+首次启动或模型变更后，执行迁移：
+
+```powershell
+# 根据 models 生成迁移文件（有自定义 app / model 时需要）
+uv run python manage.py makemigrations
+
+# 应用迁移，创建/更新 db.sqlite3
+uv run python manage.py migrate
+```
+
+默认数据库配置在 `config/settings.py`：
+
+```python
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
+```
+
+`db.sqlite3` 位于 `Server/` 根目录，已加入 `.gitignore`，不要提交到版本库。
+
+### 常用数据库相关命令
+
+```powershell
+# 查看迁移状态
+uv run python manage.py showmigrations
+
+# 查看 SQL（不执行）
+uv run python manage.py sqlmigrate <app_name> <migration_name>
+
+# 打开 Django shell（可检查 ORM）
+uv run python manage.py shell
+```
+
+## 三、创建管理员账号（可选）
+
+访问后台 `/admin/` 前需要超级用户：
+
+```powershell
+uv run python manage.py createsuperuser
+```
+
+按提示输入用户名、邮箱、密码即可。
+
+## 四、启动开发服务器
+
+```powershell
+uv run python manage.py runserver
+```
+
+默认地址：
+
+- 首页：<http://127.0.0.1:8000/>
+- 管理后台：<http://127.0.0.1:8000/admin/>
+
+指定端口：
+
+```powershell
+uv run python manage.py runserver 0.0.0.0:8000
+```
+
+## 五、日常开发流程（简版）
+
+1. `uv sync` — 同步依赖  
+2. 修改 / 新增 app 与 model  
+3. `uv run python manage.py makemigrations`  
+4. `uv run python manage.py migrate`  
+5. `uv run python manage.py runserver`  
+
+## 六、新增 Django App
+
+```powershell
+uv run python manage.py startapp <app_name>
+```
+
+然后在 `config/settings.py` 的 `INSTALLED_APPS` 中注册该 app。
+
+## 七、添加 Python 依赖
+
+```powershell
+# 生产/运行依赖
+uv add <package>
+
+# 仅开发依赖
+uv add --dev <package>
+```
+
+安装后提交更新后的 `pyproject.toml` 与 `uv.lock`。
+
+## 八、静态文件（后续部署用）
+
+开发环境一般无需额外处理。若收集静态文件：
+
+```powershell
+uv run python manage.py collectstatic
+```
+
+## 九、常见问题
+
+| 现象 | 处理 |
+|------|------|
+| `No module named django` | 在 `Server` 下执行 `uv sync`，并用 `uv run ...` 执行命令 |
+| 改了 model 页面报错 | 先 `makemigrations` 再 `migrate` |
+| 端口被占用 | `uv run python manage.py runserver 8001` |
+| 想清空本地库重来 | 删除 `db.sqlite3` 后重新 `migrate`（会丢本地数据） |
+
+## 十、快速命令速查
+
+```powershell
+cd Server
+uv sync
+uv run python manage.py migrate
+uv run python manage.py createsuperuser   # 可选
+uv run python manage.py runserver
+```
