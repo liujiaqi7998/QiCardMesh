@@ -1,0 +1,15 @@
+[package]
+name = "qicardmesh-mqtt-protocol"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+description = "Generated protobuf messages and MQTT topic helpers for QiCardMesh"
+license = "MIT"
+
+[dependencies]
+prost = "0.14.4"
+prost-types = "0.14.4"
+
+[build-dependencies]
+prost-build = "0.14.4"
+protoc-bin-vendored = "3.3.0"
