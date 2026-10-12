@@ -94,3 +94,18 @@ class AuthenticationApiTests(TestCase):
         response = self.post_json("/api/auth/mqtt-auth", {"access_token": "invalid"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["result"], "deny")
+
+    def test_me_returns_authenticated_user(self):
+        login = self.post_json(
+            "/api/auth/login",
+            {"username": "alice", "password": "correct horse battery staple"},
+        ).json()["data"]
+        response = self.client.get(
+            "/api/auth/me", HTTP_AUTHORIZATION=f"Bearer {login['access_token']}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"], {
+            "id": self.user.id,
+            "username": "alice",
+            "email": "Alice@example.com",
+        })

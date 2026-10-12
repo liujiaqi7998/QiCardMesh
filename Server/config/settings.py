@@ -91,7 +91,8 @@ CACHES = {
     },
 }
 
-ACCESS_TOKEN_TTL = int(os.environ.get('ACCESS_TOKEN_TTL', 900))
+# Access tokens last seven days by default; both values remain configurable.
+ACCESS_TOKEN_TTL = int(os.environ.get('ACCESS_TOKEN_TTL', 60 * 60 * 24 * 7))
 REFRESH_TOKEN_TTL = int(os.environ.get('REFRESH_TOKEN_TTL', 60 * 60 * 24 * 30))
 
 

@@ -9,8 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .auth import bearer_required
 from .response import response_base
-from .tokens import issue_tokens, refresh_tokens, revoke_session
-from .tokens import get_access_session
+from .tokens import get_access_session, issue_tokens, refresh_tokens, revoke_session
 
 
 def _json_body(request: HttpRequest):
@@ -130,6 +129,13 @@ def refresh(request):
         },
         message="刷新成功",
     )
+
+
+@bearer_required
+def me(request):
+    if request.method != "GET":
+        return _method_error()
+    return response_base(_user_data(request.api_user), message="获取用户信息成功")
 
 
 @csrf_exempt
