@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -37,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'qicardmesh',
 ]
 
 MIDDLEWARE = [
@@ -78,6 +80,19 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# API token/session data is stored in Redis. The URL can be changed for a
+# deployed environment without modifying the source code.
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/12')
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': REDIS_URL,
+    },
+}
+
+ACCESS_TOKEN_TTL = int(os.environ.get('ACCESS_TOKEN_TTL', 900))
+REFRESH_TOKEN_TTL = int(os.environ.get('REFRESH_TOKEN_TTL', 60 * 60 * 24 * 30))
 
 
 # Password validation

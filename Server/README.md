@@ -150,3 +150,23 @@ uv run python manage.py migrate
 uv run python manage.py createsuperuser   # 可选
 uv run python manage.py runserver
 ```
+
+## 十一、认证 API
+
+认证接口统一返回以下结构：
+
+```json
+{"code": "0", "message": "success", "data": {}}
+```
+
+令牌会写入 Redis（默认 `redis://127.0.0.1:6379/1`，可用 `REDIS_URL` 修改）。
+`ACCESS_TOKEN_TTL` 默认 900 秒，`REFRESH_TOKEN_TTL` 默认 30 天。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/auth/login` | `{"username": "用户名或邮箱", "password": "密码"}`，返回 Bearer access/refresh token |
+| POST | `/api/auth/refresh` | `{"refresh_token": "..."}`，轮换并返回新的 token 对 |
+| POST | `/api/auth/logout` | Header `Authorization: Bearer <access_token>`，撤销当前会话 |
+| GET | `/api` | 需要 Bearer access token 的示例受保护接口 |
+
+登录和刷新返回的 `refresh_token` 为单次使用令牌；刷新成功后旧的 access/refresh token 会失效。
