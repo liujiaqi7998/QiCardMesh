@@ -1,0 +1,33 @@
+[package]
+name = "qicardmesh-agent"
+version = "0.1.0"
+edition = "2021"
+description = "QiCardMesh local smart-card daemon"
+license = "MIT"
+
+[features]
+default = []
+# Enables the native PC/SC reader backend. The default build remains portable on
+# machines where a PC/SC development library is not installed.
+pcsc = ["dep:pcsc"]
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+hex = "0.4"
+prost = "0.13"
+rumqttc = { version = "0.24", default-features = false, features = ["use-rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+pcsc = { version = "2", optional = true }
+
+[build-dependencies]
+prost-build = "0.13"
+

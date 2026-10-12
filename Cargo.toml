@@ -1,0 +1,4 @@
+[workspace]
+members = ["QiCardMeshAgent"]
+resolver = "2"
+

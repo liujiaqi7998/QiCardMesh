@@ -104,3 +104,4 @@ staticfiles/
 .fleet/
 .claude/
 .cursor/
+QiCardMeshAgent/config.yaml

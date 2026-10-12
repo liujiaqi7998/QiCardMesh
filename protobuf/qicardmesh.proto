@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package qicardmesh;
+
+// A method request and response use the same MQTT topic. request_id lets a
+// caller safely match responses when several requests are in flight.
+message MethodRequest {
+  string request_id = 1;
+  Operation operation = 2;
+  string card_id = 3;
+  bytes apdu = 4;
+}
+
+enum Operation {
+  OPERATION_UNSPECIFIED = 0;
+  LIST_CARDS = 1;
+  GET_CARD = 2;
+  EXECUTE_APDU = 3;
+}
+
+message MethodResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error = 3;
+  oneof payload {
+    CardList card_list = 4;
+    CardInfo card = 5;
+    ApduResponse apdu = 6;
+  }
+}
+
+message CardList {
+  repeated CardSummary cards = 1;
+}
+
+message CardSummary {
+  string card_id = 1;
+  string reader_name = 2;
+  string protocol = 3;
+  string card_name = 4;
+}
+
+message CardInfo {
+  string card_id = 1;
+  string reader_name = 2;
+  bytes atr = 3;
+  string protocol = 4;
+  string card_name = 5;
+  map<string, string> metadata = 6;
+}
+
+message ApduResponse {
+  bytes data = 1;
+  uint32 sw1 = 2;
+  uint32 sw2 = 3;
+}
+
+message Notify {
+  NotifyEvent event = 1;
+  string user_id = 2;
+  string card_id = 3;
+  CardInfo card = 4;
+  string reason = 5;
+}
+
+enum NotifyEvent {
+  NOTIFY_EVENT_UNSPECIFIED = 0;
+  DEVICE_ONLINE = 1;
+  DEVICE_OFFLINE = 2;
+  CARD_CONNECTED = 3;
+  CARD_DISCONNECTED = 4;
+}
+
