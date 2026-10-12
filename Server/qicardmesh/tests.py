@@ -74,3 +74,23 @@ class AuthenticationApiTests(TestCase):
             self.post_json("/api/auth/refresh", {"refresh_token": login["refresh_token"]}).status_code,
             401,
         )
+
+    def test_mqtt_auth_returns_user_acl_and_expiration(self):
+        login = self.post_json(
+            "/api/auth/login",
+            {"username": "alice", "password": "correct horse battery staple"},
+        ).json()["data"]
+        response = self.post_json(
+            "/api/auth/mqtt-auth", {"access_token": login["access_token"]}
+        )
+        body = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(body["result"], "allow")
+        self.assertFalse(body["is_superuser"])
+        self.assertGreater(body["expire_at"], 0)
+        self.assertEqual(body["acl"][0]["topic"], f"QiCardMesh/device/{self.user.id}/#")
+
+    def test_mqtt_auth_denies_invalid_token(self):
+        response = self.post_json("/api/auth/mqtt-auth", {"access_token": "invalid"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["result"], "deny")

@@ -166,7 +166,23 @@ uv run python manage.py runserver
 | --- | --- | --- |
 | POST | `/api/auth/login` | `{"username": "用户名或邮箱", "password": "密码"}`，返回 Bearer access/refresh token |
 | POST | `/api/auth/refresh` | `{"refresh_token": "..."}`，轮换并返回新的 token 对 |
+| POST | `/api/auth/mqtt-auth` | `{"access_token": "..."}`，返回 MQTT broker 所需的 allow/deny 与 ACL |
 | POST | `/api/auth/logout` | Header `Authorization: Bearer <access_token>`，撤销当前会话 |
 | GET | `/api` | 需要 Bearer access token 的示例受保护接口 |
 
 登录和刷新返回的 `refresh_token` 为单次使用令牌；刷新成功后旧的 access/refresh token 会失效。
+
+`/api/auth/mqtt-auth` 返回 MQTT 鉴权原始结构，不使用 `ResponseBase` 包装：
+
+```json
+{
+  "result": "allow",
+  "is_superuser": false,
+  "expire_at": 1654254601,
+  "acl": [
+    {"permission": "allow", "action": "subscribe", "topic": "QiCardMesh/device/<用户ID>/#"},
+    {"permission": "allow", "action": "publish", "topic": "QiCardMesh/device/<用户ID>/#"},
+    {"permission": "deny", "action": "all", "topic": "#"}
+  ]
+}
+```

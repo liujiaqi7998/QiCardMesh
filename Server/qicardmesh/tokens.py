@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import secrets
+import time
 import uuid
 from dataclasses import dataclass
 
@@ -42,10 +43,16 @@ def issue_tokens(user_id: int) -> TokenPair:
     refresh_token = secrets.token_urlsafe(48)
     access_digest = _digest(access_token)
     refresh_digest = _digest(refresh_token)
+    access_expires_at = int(time.time()) + settings.ACCESS_TOKEN_TTL
 
     cache.set(
         _access_key(access_token),
-        {"user_id": user_id, "session_id": session_id, "refresh_digest": refresh_digest},
+        {
+            "user_id": user_id,
+            "session_id": session_id,
+            "refresh_digest": refresh_digest,
+            "expires_at": access_expires_at,
+        },
         timeout=settings.ACCESS_TOKEN_TTL,
     )
     cache.set(

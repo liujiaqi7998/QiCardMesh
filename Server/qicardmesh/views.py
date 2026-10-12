@@ -1,14 +1,16 @@
 import json
+import time
 
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest
+from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from .auth import bearer_required
 from .response import response_base
 from .tokens import issue_tokens, refresh_tokens, revoke_session
+from .tokens import get_access_session
 
 
 def _json_body(request: HttpRequest):
@@ -25,6 +27,47 @@ def _method_error():
 
 def _user_data(user):
     return {"id": user.id, "username": user.get_username(), "email": user.email}
+
+
+def _mqtt_deny():
+    return JsonResponse(
+        {"result": "deny", "is_superuser": False, "expire_at": 0, "acl": []}
+    )
+
+
+@csrf_exempt
+def mqtt_auth(request):
+    """Validate an access token for the MQTT broker's HTTP auth hook."""
+    if request.method != "POST":
+        return _mqtt_deny()
+    payload = _json_body(request)
+    access_token = payload.get("access_token") if payload else None
+    if not isinstance(access_token, str) or not access_token.strip():
+        return _mqtt_deny()
+
+    session = get_access_session(access_token.strip())
+    if not session:
+        return _mqtt_deny()
+    user = get_user_model().objects.filter(id=session.get("user_id"), is_active=True).first()
+    if user is None:
+        return _mqtt_deny()
+
+    expire_at = int(session.get("expires_at") or (time.time() + settings.ACCESS_TOKEN_TTL))
+    if expire_at <= int(time.time()):
+        return _mqtt_deny()
+    topic = f"QiCardMesh/device/{user.id}/#"
+    return JsonResponse(
+        {
+            "result": "allow",
+            "is_superuser": False,
+            "expire_at": expire_at,
+            "acl": [
+                {"permission": "allow", "action": "subscribe", "topic": topic},
+                {"permission": "allow", "action": "publish", "topic": topic},
+                {"permission": "deny", "action": "all", "topic": "#"},
+            ],
+        }
+    )
 
 
 @csrf_exempt
