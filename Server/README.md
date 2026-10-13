@@ -37,6 +37,12 @@ Copy-Item .env.example .env
 
 `config/settings.py` 会自动读取 `Server/.env`；已存在的系统环境变量优先级更高。
 
+项目通过 `qicardmesh.middleware.DisableCsrfChecksMiddleware` 全局禁用 CSRF 校验，
+包括 Django 管理后台的登录、退出和修改操作。客户端无需提交 CSRF token；
+用户认证与权限检查仍然有效。CSRF 与 CORS（跨域访问）是独立机制；
+此配置不会开放 CORS，并且使用 Cookie 认证的后台不再具备 CSRF 防护。
+部署配置变更后需重启所有 Uvicorn worker。
+
 上述命令会创建 `.venv` 并安装 `requirements.txt` 中的依赖。
 
 ## 二、数据库迁移（SQLite）

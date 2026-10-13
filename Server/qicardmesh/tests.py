@@ -2,7 +2,7 @@ import json
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.test import AsyncClient, Client, TestCase, override_settings
 
 
 @override_settings(
@@ -109,3 +109,44 @@ class AuthenticationApiTests(TestCase):
             "username": "alice",
             "email": "Alice@example.com",
         })
+
+
+class CsrfDisabledTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = get_user_model().objects.create_superuser(
+            username="admin", email="admin@example.com", password="test-admin-password"
+        )
+
+    def test_admin_login_and_logout_without_csrf_token(self):
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(
+            "/admin/login/",
+            {"username": "admin", "password": "test-admin-password", "next": "/admin/"},
+            secure=True,
+            HTTP_ORIGIN="https://different.example",
+        )
+        self.assertRedirects(response, "/admin/", fetch_redirect_response=False)
+        self.assertEqual(client.session["_auth_user_id"], str(self.admin.pk))
+        response = client.post("/admin/logout/", secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", client.session)
+
+    async def test_asgi_admin_login_without_csrf_token(self):
+        client = AsyncClient(enforce_csrf_checks=True)
+        response = await client.post(
+            "/admin/login/",
+            {"username": "admin", "password": "test-admin-password", "next": "/admin/"},
+            secure=True,
+            headers={"Origin": "https://different.example"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/admin/")
+
+    def test_admin_still_requires_correct_password(self):
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(
+            "/admin/login/", {"username": "admin", "password": "wrong-password"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", client.session)
