@@ -27,13 +27,6 @@ def env_bool(name, default=False):
     return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
-def env_list(name, default):
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    return [item.strip() for item in value.split(',') if item.strip()]
-
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
@@ -46,7 +39,7 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool('DJANGO_DEBUG', True)
 
-ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ["127.0.0.1", "localhost"])
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
