@@ -52,6 +52,7 @@ ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ["127.0.0.1", "localhost"])
 # Application definition
 
 INSTALLED_APPS = [
+    'simpleui',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -60,6 +61,15 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'qicardmesh',
 ]
+
+# SimpleUI admin theme and home page settings.
+SIMPLEUI_HOME_QUICK = False
+SIMPLEUI_HOME_ACTION = False
+SIMPLEUI_STATIC_OFFLINE = True
+# Enterprise blue: SimpleUI expects the theme CSS filename.
+SIMPLEUI_DEFAULT_THEME = 'e-blue.css'
+SIMPLEUI_HOME_INFO = False
+SIMPLEUI_ANALYSIS = False
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -76,10 +86,11 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',

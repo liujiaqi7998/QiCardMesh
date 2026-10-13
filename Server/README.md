@@ -85,6 +85,11 @@ python manage.py shell
 
 ## 三、创建管理员账号（可选）
 
+管理后台使用 Django SimpleUI，默认主题为 `Enterprise blue`（配置值 `e-blue.css`），静态资源使用本地文件。
+首页快捷入口、操作区、信息区及分析功能在 `config/settings.py` 中关闭。
+部署或升级后执行 `python manage.py collectstatic --noinput`，再重启 Uvicorn。
+Nginx 的 `/static/` 应映射到 `STATIC_ROOT`（当前为 `Server/static/`）。
+
 访问后台 `/admin/` 前需要超级用户：
 
 ```powershell

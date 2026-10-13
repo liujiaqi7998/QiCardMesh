@@ -105,3 +105,5 @@ staticfiles/
 .claude/
 .cursor/
 QiCardMeshAgent/config.yaml
+
+Server/static/admin/
