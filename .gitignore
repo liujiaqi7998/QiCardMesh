@@ -65,7 +65,7 @@ target/
 *.dylib
 *.rlib
 
-# Python / uv / Django (Server)
+# Python / Django (Server)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -91,8 +91,8 @@ db.sqlite3-journal
 media/
 staticfiles/
 
-# Keep lockfiles for reproducible installs
-# (uv.lock, package-lock.json, Cargo.lock are tracked when present)
+# Keep lockfiles for reproducible installs when present
+# (package-lock.json and Cargo.lock are tracked when present)
 
 # Misc tooling
 *.tmp

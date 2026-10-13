@@ -9,9 +9,6 @@ wheels/
 # Virtual environments
 .venv/
 
-# uv
-# uv.lock is committed for reproducible installs
-
 # Django
 *.log
 local_settings.py
