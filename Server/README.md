@@ -29,6 +29,14 @@ cd Server
 uv sync
 ```
 
+首次部署时复制环境变量示例并按实际环境修改：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+`config/settings.py` 会自动读取 `Server/.env`；已存在的系统环境变量优先级更高。
+
 会创建 `.venv` 并安装 `pyproject.toml` / `uv.lock` 中的依赖（含 Django）。
 
 ## 二、数据库迁移（SQLite）
@@ -159,7 +167,7 @@ uv run python manage.py runserver
 {"code": "0", "message": "success", "data": {}}
 ```
 
-令牌会写入 Redis（默认 `redis://127.0.0.1:6379/1`，可用 `REDIS_URL` 修改）。
+令牌会写入 Redis（默认 `redis://127.0.0.1:6379/12`，可用 `REDIS_URL` 修改）。
 `ACCESS_TOKEN_TTL` 默认 7 天（604800 秒），`REFRESH_TOKEN_TTL` 默认 30 天。
 
 | 方法 | 路径 | 说明 |
