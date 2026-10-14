@@ -12,6 +12,7 @@ class ErrorCode(IntEnum):
     INVALID_ARGUMENT = 40002
     PASSWORD_INVALID = 40003
     EMAIL_INVALID = 40004
+    CAPTCHA_INVALID = 40005
     METHOD_NOT_ALLOWED = 40501
 
     INVALID_CREDENTIALS = 40101
@@ -32,6 +33,7 @@ ERROR_MESSAGES = {
     ErrorCode.INVALID_ARGUMENT: "请求参数无效",
     ErrorCode.PASSWORD_INVALID: "密码必须是 sha256$ 加前缀的 64 位十六进制摘要",
     ErrorCode.EMAIL_INVALID: "邮箱格式无效",
+    ErrorCode.CAPTCHA_INVALID: "图形验证码错误或已过期",
     ErrorCode.METHOD_NOT_ALLOWED: "请求方法不支持",
     ErrorCode.INVALID_CREDENTIALS: "用户名或密码错误",
     ErrorCode.TOKEN_INVALID: "access_token 无效或已过期",

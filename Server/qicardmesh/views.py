@@ -9,6 +9,7 @@ from config.error import ErrorCode
 
 from .api import api_endpoint
 from .auth import bearer_required
+from .captcha import verify as verify_captcha
 from .email_codes import EmailCodeError, send_email_code, verify_email_code
 from .login_throttle import clear_login_failures, is_login_locked, record_login_failure
 from .response import response_base
@@ -63,6 +64,8 @@ def mqtt_auth(request, payload: MqttAuthRequest):
 @csrf_exempt
 @api_endpoint("auth-email-send")
 def email_send(request, payload: EmailSendRequest):
+    if not verify_captcha(request, payload.captcha):
+        return response_base(code=ErrorCode.CAPTCHA_INVALID)
     try:
         send_email_code(payload.email)
     except EmailCodeError as exc:

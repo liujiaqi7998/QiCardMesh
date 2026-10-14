@@ -13,6 +13,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 
 from .email_codes import verify_email_code
 from .passwords import hash_password_for_api
+from .captcha import CAPTCHA_SESSION_KEY
 
 
 @override_settings(
@@ -31,8 +32,15 @@ class EmailCodeTests(TestCase):
     def post(self, path, data):
         return self.client.post(path, data=data, content_type='application/json')
 
+    def captcha(self):
+        response = self.client.get('/api/auth/captcha')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'image/png')
+        challenge = self.client.session[CAPTCHA_SESSION_KEY]
+        return challenge['code']
+
     def send_code(self, email='Alice@EXAMPLE.com'):
-        response = self.post('/api/auth/email-send', {'email': email})
+        response = self.post('/api/auth/email-send', {'email': email, 'captcha': self.captcha()})
         self.assertEqual(response.status_code, 200, response.content)
         return re.search(r'\b[0-9]{6}\b', mail.outbox[-1].body).group()
 
@@ -66,7 +74,9 @@ class EmailCodeTests(TestCase):
 
     def test_same_email_send_cooldown(self):
         code = self.send_code()
-        response = self.post('/api/auth/email-send/', {'email': 'alice@EXAMPLE.com'})
+        response = self.post('/api/auth/email-send/', {
+            'email': 'alice@EXAMPLE.com', 'captcha': self.captcha(),
+        })
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response.json()['code'], 42901)
         self.assertEqual(len(mail.outbox), 1)
@@ -111,14 +121,18 @@ class EmailCodeTests(TestCase):
 
     def test_smtp_failure_does_not_store_new_code(self):
         with patch('qicardmesh.email_codes.EmailMultiAlternatives.send', side_effect=smtplib.SMTPException('failed')):
-            response = self.post('/api/auth/email-send', {'email': 'alice@example.com'})
+            response = self.post('/api/auth/email-send', {
+                'email': 'alice@example.com', 'captcha': self.captcha(),
+            })
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()['code'], 50301)
         self.assertFalse(verify_email_code('alice@example.com', '000000'))
 
     def test_redis_failure_returns_service_error(self):
         with patch('qicardmesh.email_codes.cache.add', side_effect=RedisConnectionError):
-            response = self.post('/api/auth/email-send', {'email': 'alice@example.com'})
+            response = self.post('/api/auth/email-send', {
+                'email': 'alice@example.com', 'captcha': self.captcha(),
+            })
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()['code'], 50302)
 
@@ -145,9 +159,23 @@ class EmailCodeTests(TestCase):
     def test_invalid_requests(self):
         for email in (None, '', 'bad', 'a@example.com\r\nBcc: x@example.com', ['a@example.com']):
             with self.subTest(email=email):
-                self.assertEqual(self.post('/api/auth/email-send', {'email': email}).json()['code'], 40002)
+                self.assertEqual(self.post('/api/auth/email-send', {
+                    'email': email, 'captcha': self.captcha(),
+                }).json()['code'], 40002)
         self.assertEqual(self.post('/api/auth/email-send', []).json()['code'], 40001)
         self.assertEqual(self.client.get('/api/auth/email-send').status_code, 405)
+
+    def test_email_send_requires_case_insensitive_session_captcha(self):
+        response = self.post('/api/auth/email-send', {
+            'email': 'alice@example.com', 'captcha': self.captcha().swapcase(),
+        })
+        self.assertEqual(response.status_code, 200)
+
+        response = self.post('/api/auth/email-send', {
+            'email': 'alice@example.com', 'captcha': 'AAAAA',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 40005)
         for code in (None, 123456, '123', '１２３４５６'):
             with self.subTest(code=code):
                 self.assertEqual(self.login(code).json()['code'], 40002)

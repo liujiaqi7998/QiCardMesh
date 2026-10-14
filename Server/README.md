@@ -230,7 +230,8 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/auth/login` | 支持 `{"username": "用户名或邮箱", "password": "sha256$..."}` 或 `{"email": "邮箱", "email_code": "验证码"}`，返回 Bearer access/refresh token |
-| POST | `/api/auth/email-send` | `{"email": "ex@a.com"}`，发送 6 位邮箱验证码 |
+| GET | `/api/auth/captcha` | 返回绑定当前 session 的 PNG 图形验证码 |
+| POST | `/api/auth/email-send` | `{"email": "ex@a.com", "captcha": "验证码"}`，发送 6 位邮箱验证码 |
 | POST | `/api/auth/change-password` | Bearer 登录后提交 `{"email_code": "验证码", "password": "sha256$..."}`，使用 Django 哈希修改密码 |
 | POST | `/api/auth/change-email` | Bearer 登录后提交 `{"email_code": "验证码", "email": "新邮箱"}`，修改邮箱 |
 | POST | `/api/auth/refresh` | `{"refresh_token": "..."}`，轮换并返回新的 token 对 |
@@ -249,6 +250,10 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 `{"email": "ex@a.com", "email_code": "123456"}`。验证码 5 分钟有效、只能使用一次，
 同一邮箱 60 秒内只能发送一次，最多尝试 5 次。SMTP SSL 465 配置读取 `SMTP_HOST`、
 `SMTP_USERNAME`、`SMTP_PASSWORD` 和 `SMTP_FROM_EMAIL`。
+
+调用 `/api/auth/captcha` 获取 PNG 图形验证码后，将同一 session 中的验证码通过
+`captcha`（也兼容 `captcha_code`）提交给 `/api/auth/email-send`。验证码为 5 位数字和字母组合，
+字母不区分大小写，验证成功或失败后都会消耗当前验证码。
 
 修改密码和用户名密码登录的 `password` 必须由客户端先计算为 `sha256$` 加 64 位小写 SHA-256 摘要，例如：
 

@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import validate_email
 from django.urls import reverse
 from pydantic import (
-    AfterValidator, BaseModel, ConfigDict, Field, RootModel,
+    AfterValidator, AliasChoices, BaseModel, ConfigDict, Field, RootModel,
     StringConstraints, TypeAdapter, ValidationError, model_validator,
 )
 from pydantic.json_schema import models_json_schema
@@ -28,6 +28,8 @@ TrimmedString = Annotated[str, StringConstraints(strict=True, strip_whitespace=T
 Email = Annotated[str, StringConstraints(strict=True), AfterValidator(_normalize_email),
                   Field(json_schema_extra={"format": "email"})]
 EmailCode = Annotated[str, StringConstraints(strict=True, min_length=6, max_length=6, pattern=r"^[0-9]{6}$")]
+CaptchaCode = Annotated[str, StringConstraints(strict=True, min_length=5, max_length=5,
+                                              pattern=r"^[A-Za-z0-9]{5}$")]
 ClientPassword = Annotated[str, StringConstraints(strict=True, min_length=71, max_length=71,
                                                 pattern=r"^sha256\$[0-9a-f]{64}$"),
                            Field(description="客户端计算的 sha256$ 摘要；服务端使用 Django set_password 保存",
@@ -93,6 +95,8 @@ class LoginRequest(RootModel[PasswordLoginRequest | EmailCodeLoginRequest]):
 
 class EmailSendRequest(RequestSchema):
     email: Email
+    captcha: CaptchaCode = Field(validation_alias=AliasChoices("captcha", "captcha_code"),
+                                 description="/api/auth/captcha 返回的图形验证码，字母不区分大小写")
 
 
 class RefreshRequest(RequestSchema):
@@ -259,8 +263,9 @@ ENDPOINTS = {
                                    503: "50302：认证缓存不可用"}),
     "auth-email-send": Endpoint(operation_id="emailSend", summary="发送邮箱验证码",
                                 request=EmailSendRequest, response=EmailSendResponse, public=True,
-                                description="通过 SMTP SSL 465 发送 HTML 邮件。验证码 5 分钟有效，邮箱 60 秒内只能发送一次。",
+                                description="发送邮箱验证码前必须提交同一 session 获取的图形验证码 captcha（或 captcha_code）。字母不区分大小写。通过 SMTP SSL 465 发送 HTML 邮件。邮箱 60 秒内只能发送一次。",
                                 errors={**INPUT_ERRORS, 429: "42901：发送过于频繁",
+                                        400: "40001：JSON 无效；40002：参数无效；40005：图形验证码错误或已过期",
                                         503: "50301：邮件发送失败；50302：认证缓存不可用"}),
     "auth-refresh": Endpoint(operation_id="refresh", summary="刷新令牌", request=RefreshRequest,
                              response=RefreshResponse, public=True,
