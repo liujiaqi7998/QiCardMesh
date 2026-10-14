@@ -108,6 +108,8 @@ python -m uvicorn config.asgi:application --reload --lifespan off
 
 - 首页：<http://127.0.0.1:8000/>
 - 管理后台：<http://127.0.0.1:8000/admin/>
+- Swagger UI：<http://127.0.0.1:8000/api/docs/>
+- OpenAPI JSON：<http://127.0.0.1:8000/api/openapi.json>
 
 指定端口：
 
@@ -191,6 +193,23 @@ python -m uvicorn config.asgi:application --reload --lifespan off
 ```
 
 ## 十一、认证 API
+
+### OpenAPI / Swagger 调试
+
+访问 `/api/docs/` 查看全部 6 个接口的参数、响应、错误码，并通过 **Try it out** 发起真实请求。
+`/api/openapi.json` 提供 OpenAPI 3.0.3 文档，可导入 Postman、Apifox 等工具。
+文档与 JSON 无需登录即可访问；接口本身仍执行原有的认证检查。
+
+1. 展开 `POST /api/auth/login`，点击 **Try it out**，输入实际用户名（或邮箱）及密码，点击 **Execute**。
+2. 复制响应的 `data.access_token`，点击页面的 **Authorize**，仅粘贴 token，无需添加 `Bearer ` 前缀。
+3. 即可调试 `/api`、`/api/auth/me`、`/api/auth/logout`；MQTT 鉴权需要将 token 填入 JSON 请求体。
+4. 刷新令牌后需用新 access token 重新 **Authorize**；刷新页面不会保留授权。
+
+当前为原生 Django 视图，使用 `qicardmesh/openapi.py` 显式维护接口契约，
+通过 Swagger UI 展示，不额外引入 Django REST Framework。
+新增接口或修改参数、响应时，需要同步更新该文件中的 schema 和 paths；路径通过 Django 命名路由解析。
+Swagger UI 的 JS/CSS 使用固定版本 `5.33.2` 的 jsDelivr CDN，浏览器需能访问该 CDN；
+OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需要 Redis。
 
 认证接口统一返回以下结构：
 

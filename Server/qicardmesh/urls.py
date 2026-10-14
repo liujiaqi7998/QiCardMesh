@@ -1,9 +1,12 @@
 from django.urls import path
 
-from . import views
+from . import openapi, views
 
 
 urlpatterns = [
+    path("api/openapi.json", openapi.openapi_schema, name="openapi-schema"),
+    path("api/docs", openapi.swagger_ui, name="swagger-ui"),
+    path("api/docs/", openapi.swagger_ui),
     path("api", views.api_root, name="api-root"),
     path("api/", views.api_root),
     path("api/auth/login", views.login, name="auth-login"),
