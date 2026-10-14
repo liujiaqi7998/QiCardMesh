@@ -11,6 +11,8 @@ urlpatterns = [
     path("api/", views.api_root),
     path("api/auth/login", views.login, name="auth-login"),
     path("api/auth/login/", views.login),
+    path("api/auth/email-send", views.email_send, name="auth-email-send"),
+    path("api/auth/email-send/", views.email_send),
     path("api/auth/refresh", views.refresh, name="auth-refresh"),
     path("api/auth/refresh/", views.refresh),
     path("api/auth/mqtt-auth", views.mqtt_auth, name="mqtt-auth"),

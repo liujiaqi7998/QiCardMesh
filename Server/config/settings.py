@@ -163,6 +163,19 @@ STATIC_ROOT = BASE_DIR / "static"
 
 MAILERS = {
     'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+        'BACKEND': 'django.core.mail.backends.smtp.EmailBackend',
+        'OPTIONS': {
+            'host': os.environ.get('SMTP_HOST', ''),
+            'port': 465,
+            'username': os.environ.get('SMTP_USERNAME', ''),
+            'password': os.environ.get('SMTP_PASSWORD', ''),
+            'use_ssl': True,
+            'use_tls': False,
+            'timeout': 10,
+        },
     },
 }
+DEFAULT_FROM_EMAIL = os.environ.get('SMTP_FROM_EMAIL', os.environ.get('SMTP_USERNAME', ''))
+EMAIL_CODE_TTL = 300
+EMAIL_CODE_SEND_INTERVAL = 60
+EMAIL_CODE_MAX_ATTEMPTS = 5

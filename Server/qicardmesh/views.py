@@ -4,12 +4,15 @@ import time
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from redis.exceptions import RedisError
 
 from config.error import ErrorCode
 
 from .auth import bearer_required
+from .email_codes import EmailCodeError, normalize_email, send_email_code, verify_email_code
 from .response import response_base
 from .tokens import get_access_session, issue_tokens, refresh_tokens, revoke_session
 
@@ -72,6 +75,25 @@ def mqtt_auth(request):
 
 
 @csrf_exempt
+def email_send(request):
+    if request.method != "POST":
+        return _method_error()
+    payload = _json_body(request)
+    if payload is None:
+        return response_base(code=ErrorCode.INVALID_JSON)
+    try:
+        email = normalize_email(payload.get("email"))
+        send_email_code(email)
+    except ValidationError:
+        return response_base(code=ErrorCode.INVALID_ARGUMENT)
+    except EmailCodeError as exc:
+        return response_base(code=exc.code)
+    except RedisError:
+        return response_base(code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
+    return response_base({"expires_in": settings.EMAIL_CODE_TTL}, message="验证码已发送")
+
+
+@csrf_exempt
 def login(request):
     if request.method != "POST":
         return _method_error()
@@ -79,22 +101,46 @@ def login(request):
     if payload is None:
         return response_base(None, code=ErrorCode.INVALID_JSON)
 
-    username = str(payload.get("username", "")).strip()
-    password = payload.get("password")
-    if not username or not isinstance(password, str) or not password:
-        return response_base(None, code=ErrorCode.INVALID_ARGUMENT)
-
     user_model = get_user_model()
-    login_name = username
-    if "@" in username:
-        user = user_model.objects.filter(email__iexact=username, is_active=True).first()
-        if user:
-            login_name = user.get_username()
-    user = authenticate(request, username=login_name, password=password)
+    if "email" in payload or "email_code" in payload:
+        if "username" in payload or "password" in payload:
+            return response_base(code=ErrorCode.INVALID_ARGUMENT)
+        try:
+            email = normalize_email(payload.get("email"))
+        except ValidationError:
+            return response_base(code=ErrorCode.INVALID_ARGUMENT)
+        email_code = payload.get("email_code")
+        if not isinstance(email_code, str) or len(email_code) != 6 or not email_code.isascii() or not email_code.isdigit():
+            return response_base(code=ErrorCode.INVALID_ARGUMENT)
+        try:
+            if not verify_email_code(email, email_code):
+                return response_base(code=ErrorCode.EMAIL_CODE_INVALID)
+        except RedisError:
+            return response_base(code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
+        # The built-in User email field isn't unique. Never choose an arbitrary
+        # account when the same email is associated with multiple users.
+        users = list(user_model.objects.filter(email__iexact=email)[:2])
+        if len(users) != 1 or not users[0].is_active:
+            return response_base(code=ErrorCode.USER_INVALID)
+        user = users[0]
+    else:
+        username = payload.get("username")
+        password = payload.get("password")
+        if not isinstance(username, str) or not username.strip() or not isinstance(password, str) or not password:
+            return response_base(None, code=ErrorCode.INVALID_ARGUMENT)
+        login_name = username.strip()
+        if "@" in login_name:
+            user = user_model.objects.filter(email__iexact=login_name, is_active=True).first()
+            if user:
+                login_name = user.get_username()
+        user = authenticate(request, username=login_name, password=password)
     if user is None or not user.is_active:
         return response_base(None, code=ErrorCode.INVALID_CREDENTIALS)
 
-    pair = issue_tokens(user.id)
+    try:
+        pair = issue_tokens(user.id)
+    except RedisError:
+        return response_base(code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
     return response_base(
         {
             "token_type": "Bearer",

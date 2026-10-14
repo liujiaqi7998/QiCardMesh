@@ -16,6 +16,10 @@ class ErrorCode(IntEnum):
     TOKEN_INVALID = 40102
     USER_INVALID = 40103
     REFRESH_TOKEN_INVALID = 40104
+    EMAIL_CODE_INVALID = 40105
+    EMAIL_SEND_TOO_FAST = 42901
+    EMAIL_SEND_FAILED = 50301
+    AUTH_CACHE_UNAVAILABLE = 50302
 
 
 ERROR_MESSAGES = {
@@ -27,6 +31,10 @@ ERROR_MESSAGES = {
     ErrorCode.TOKEN_INVALID: "access_token 无效或已过期",
     ErrorCode.USER_INVALID: "用户不存在或已停用",
     ErrorCode.REFRESH_TOKEN_INVALID: "refresh_token 无效或已过期",
+    ErrorCode.EMAIL_CODE_INVALID: "邮箱验证码错误、已过期或已使用",
+    ErrorCode.EMAIL_SEND_TOO_FAST: "发送过于频繁，请稍后重试",
+    ErrorCode.EMAIL_SEND_FAILED: "邮件发送失败，请稍后重试",
+    ErrorCode.AUTH_CACHE_UNAVAILABLE: "认证服务暂时不可用，请稍后重试",
 }
 
 
@@ -46,11 +54,16 @@ def http_status(code):
         return 200
     if normalized == ErrorCode.METHOD_NOT_ALLOWED:
         return 405
+    if normalized == ErrorCode.EMAIL_SEND_TOO_FAST:
+        return 429
+    if normalized in {ErrorCode.EMAIL_SEND_FAILED, ErrorCode.AUTH_CACHE_UNAVAILABLE}:
+        return 503
     if normalized in {
         ErrorCode.INVALID_CREDENTIALS,
         ErrorCode.TOKEN_INVALID,
         ErrorCode.USER_INVALID,
         ErrorCode.REFRESH_TOKEN_INVALID,
+        ErrorCode.EMAIL_CODE_INVALID,
     }:
         return 401
     return 400

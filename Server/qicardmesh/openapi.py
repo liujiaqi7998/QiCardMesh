@@ -68,10 +68,25 @@ def build_schema():
     }
     schemas = {
         "User": _object({"id": {"type": "integer"}, "username": string, "email": string}),
-        "LoginRequest": _object({
-            "username": {"type": "string", "minLength": 1, "description": "用户名或邮箱", "example": "alice"},
-            "password": {"type": "string", "minLength": 1, "format": "password", "writeOnly": True},
+        "LoginRequest": {
+            "oneOf": [
+                _object({
+                    "username": {"type": "string", "minLength": 1, "description": "用户名或邮箱", "example": "alice"},
+                    "password": {"type": "string", "minLength": 1, "format": "password", "writeOnly": True},
+                }),
+                _ref("EmailCodeLoginRequest"),
+            ],
+        },
+        "EmailCodeLoginRequest": _object({
+            "email": {"type": "string", "format": "email", "description": "已注册邮箱"},
+            "email_code": {"type": "string", "pattern": "^[0-9]{6}$", "description": "邮箱验证码"},
         }),
+        "EmailSendRequest": _object({
+            "email": {"type": "string", "format": "email", "description": "接收验证码的邮箱"},
+        }),
+        "EmailSendResponse": _envelope(_object({
+            "expires_in": {"type": "integer", "description": "验证码有效期，单位：秒"},
+        })),
         "RefreshRequest": _object({"refresh_token": token}),
         "MqttAuthRequest": _object({"access_token": token}),
         "LoginResponse": _envelope(_object(token_properties)),
@@ -138,7 +153,13 @@ def build_schema():
             )},
             reverse("auth-login"): {"post": _operation(
                 "login", "登录", "LoginResponse", request="LoginRequest", public=True,
-                errors={**input_errors, 401: "40101：用户名或密码错误"},
+                description="支持 username + password，或 email + email_code 两种登录方式。",
+                errors={**input_errors, 401: "40101：用户名或密码错误；40103：用户不存在或已停用；40105：邮箱验证码无效"},
+            )},
+            reverse("auth-email-send"): {"post": _operation(
+                "emailSend", "发送邮箱验证码", "EmailSendResponse", request="EmailSendRequest", public=True,
+                description="通过 SMTP SSL 465 发送 HTML 邮件。验证码 5 分钟有效，邮箱 60 秒内只能发送一次。",
+                errors={**input_errors, 429: "42901：发送过于频繁", 503: "50301：邮件发送失败；50302：认证缓存不可用"},
             )},
             reverse("auth-refresh"): {"post": _operation(
                 "refresh", "刷新令牌", "RefreshResponse", request="RefreshRequest", public=True,
