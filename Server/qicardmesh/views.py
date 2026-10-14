@@ -2,9 +2,10 @@ import json
 import time
 
 from django.conf import settings
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, update_session_auth_hash
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from redis.exceptions import RedisError
@@ -163,7 +164,10 @@ def refresh(request):
     if not isinstance(refresh_token, str) or not refresh_token.strip():
         return response_base(None, code=ErrorCode.INVALID_ARGUMENT)
 
-    pair = refresh_tokens(refresh_token.strip())
+    try:
+        pair = refresh_tokens(refresh_token.strip())
+    except RedisError:
+        return response_base(code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
     if pair is None:
         return response_base(None, code=ErrorCode.REFRESH_TOKEN_INVALID)
 
@@ -176,6 +180,68 @@ def refresh(request):
         },
         message="刷新成功",
     )
+
+
+@csrf_exempt
+@bearer_required
+def change_password(request):
+    if request.method != "POST":
+        return _method_error()
+    payload = _json_body(request)
+    if payload is None:
+        return response_base(code=ErrorCode.INVALID_JSON)
+    password = payload.get("password")
+    email_code = payload.get("email_code")
+    if not isinstance(password, str) or not password:
+        return response_base(code=ErrorCode.PASSWORD_INVALID)
+    try:
+        validate_password(password, request.api_user)
+    except ValidationError:
+        return response_base(code=ErrorCode.PASSWORD_INVALID)
+    if not isinstance(email_code, str) or len(email_code) != 6 or not email_code.isascii() or not email_code.isdigit():
+        return response_base(code=ErrorCode.INVALID_ARGUMENT)
+    email = request.api_user.email
+    if not email:
+        return response_base(code=ErrorCode.EMAIL_INVALID)
+    try:
+        verified = verify_email_code(email, email_code)
+    except RedisError:
+        return response_base(code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
+    if not verified:
+        return response_base(code=ErrorCode.EMAIL_CODE_INVALID)
+    request.api_user.set_password(password)
+    request.api_user.save(update_fields=["password"])
+    # Preserve the current Django admin/session login if one exists.
+    update_session_auth_hash(request, request.api_user)
+    return response_base(None, message="密码修改成功")
+
+
+@csrf_exempt
+@bearer_required
+def change_email(request):
+    if request.method != "POST":
+        return _method_error()
+    payload = _json_body(request)
+    if payload is None:
+        return response_base(code=ErrorCode.INVALID_JSON)
+    email_code = payload.get("email_code")
+    try:
+        email = normalize_email(payload.get("email"))
+    except ValidationError:
+        return response_base(code=ErrorCode.EMAIL_INVALID)
+    if not isinstance(email_code, str) or len(email_code) != 6 or not email_code.isascii() or not email_code.isdigit():
+        return response_base(code=ErrorCode.INVALID_ARGUMENT)
+    if get_user_model().objects.filter(email__iexact=email).exclude(pk=request.api_user.pk).exists():
+        return response_base(code=ErrorCode.EMAIL_ALREADY_EXISTS)
+    try:
+        verified = verify_email_code(email, email_code)
+    except RedisError:
+        return response_base(code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
+    if not verified:
+        return response_base(code=ErrorCode.EMAIL_CODE_INVALID)
+    request.api_user.email = email
+    request.api_user.save(update_fields=["email"])
+    return response_base({"email": email}, message="邮箱修改成功")
 
 
 @bearer_required

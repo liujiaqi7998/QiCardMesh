@@ -10,6 +10,8 @@ class ErrorCode(IntEnum):
 
     INVALID_JSON = 40001
     INVALID_ARGUMENT = 40002
+    PASSWORD_INVALID = 40003
+    EMAIL_INVALID = 40004
     METHOD_NOT_ALLOWED = 40501
 
     INVALID_CREDENTIALS = 40101
@@ -20,12 +22,15 @@ class ErrorCode(IntEnum):
     EMAIL_SEND_TOO_FAST = 42901
     EMAIL_SEND_FAILED = 50301
     AUTH_CACHE_UNAVAILABLE = 50302
+    EMAIL_ALREADY_EXISTS = 40901
 
 
 ERROR_MESSAGES = {
     ErrorCode.SUCCESS: "成功",
     ErrorCode.INVALID_JSON: "请求体必须是 JSON 对象",
     ErrorCode.INVALID_ARGUMENT: "请求参数无效",
+    ErrorCode.PASSWORD_INVALID: "密码不符合安全要求",
+    ErrorCode.EMAIL_INVALID: "邮箱格式无效",
     ErrorCode.METHOD_NOT_ALLOWED: "请求方法不支持",
     ErrorCode.INVALID_CREDENTIALS: "用户名或密码错误",
     ErrorCode.TOKEN_INVALID: "access_token 无效或已过期",
@@ -35,6 +40,7 @@ ERROR_MESSAGES = {
     ErrorCode.EMAIL_SEND_TOO_FAST: "发送过于频繁，请稍后重试",
     ErrorCode.EMAIL_SEND_FAILED: "邮件发送失败，请稍后重试",
     ErrorCode.AUTH_CACHE_UNAVAILABLE: "认证服务暂时不可用，请稍后重试",
+    ErrorCode.EMAIL_ALREADY_EXISTS: "邮箱已被其他用户使用",
 }
 
 
@@ -56,6 +62,8 @@ def http_status(code):
         return 405
     if normalized == ErrorCode.EMAIL_SEND_TOO_FAST:
         return 429
+    if normalized == ErrorCode.EMAIL_ALREADY_EXISTS:
+        return 409
     if normalized in {ErrorCode.EMAIL_SEND_FAILED, ErrorCode.AUTH_CACHE_UNAVAILABLE}:
         return 503
     if normalized in {

@@ -87,6 +87,15 @@ def build_schema():
         "EmailSendResponse": _envelope(_object({
             "expires_in": {"type": "integer", "description": "验证码有效期，单位：秒"},
         })),
+        "ChangePasswordRequest": _object({
+            "email_code": {"type": "string", "pattern": "^[0-9]{6}$"},
+            "password": {"type": "string", "minLength": 1, "format": "password", "writeOnly": True,
+                         "description": "明文密码，通过 HTTPS 传输，服务端使用 Django set_password 哈希"},
+        }),
+        "ChangeEmailRequest": _object({
+            "email_code": {"type": "string", "pattern": "^[0-9]{6}$"},
+            "email": {"type": "string", "format": "email"},
+        }),
         "RefreshRequest": _object({"refresh_token": token}),
         "MqttAuthRequest": _object({"access_token": token}),
         "LoginResponse": _envelope(_object(token_properties)),
@@ -165,6 +174,27 @@ def build_schema():
                 "refresh", "刷新令牌", "RefreshResponse", request="RefreshRequest", public=True,
                 description="refresh_token 只能使用一次；成功后旧 access/refresh token 均失效。",
                 errors={**input_errors, 401: "40104：refresh_token 无效或已过期"},
+            )},
+            reverse("auth-change-password"): {"post": _operation(
+                "changePassword", "修改密码", "LogoutResponse", request="ChangePasswordRequest",
+                errors={
+                    **protected_errors,
+                    400: "40001：JSON 无效；40002：参数无效；40003：密码不符合安全要求",
+                    401: "40102：令牌无效；40103：用户无效；40105：邮箱验证码无效",
+                    503: "50302：认证缓存不可用",
+                },
+                description="需要 Bearer access_token。验证码发送到当前账号邮箱；密码由服务端使用 Django set_password 哈希。",
+            )},
+            reverse("auth-change-email"): {"post": _operation(
+                "changeEmail", "修改邮箱", "UserResponse", request="ChangeEmailRequest",
+                errors={
+                    **protected_errors,
+                    400: "40001：JSON 无效；40002：参数无效；40004：邮箱无效",
+                    401: "40102：令牌无效；40103：用户无效；40105：邮箱验证码无效",
+                    409: "40901：邮箱已被其他用户使用",
+                    503: "50302：认证缓存不可用",
+                },
+                description="需要 Bearer access_token。验证码发送到待设置的新邮箱。",
             )},
             reverse("mqtt-auth"): {"post": mqtt},
             reverse("auth-me"): {"get": _operation(

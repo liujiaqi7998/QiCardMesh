@@ -1,6 +1,7 @@
 from functools import wraps
 
 from django.contrib.auth import get_user_model
+from redis.exceptions import RedisError
 
 from config.error import ErrorCode
 
@@ -20,7 +21,10 @@ def bearer_required(view):
     @wraps(view)
     def wrapped(request, *args, **kwargs):
         token = bearer_token(request)
-        session = get_access_session(token)
+        try:
+            session = get_access_session(token)
+        except RedisError:
+            return response_base(None, code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
         if not session:
             return response_base(
                 None,

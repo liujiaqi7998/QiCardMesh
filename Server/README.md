@@ -226,6 +226,8 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 | --- | --- | --- |
 | POST | `/api/auth/login` | 支持 `{"username": "用户名或邮箱", "password": "密码"}` 或 `{"email": "邮箱", "email_code": "验证码"}`，返回 Bearer access/refresh token |
 | POST | `/api/auth/email-send` | `{"email": "ex@a.com"}`，发送 6 位邮箱验证码 |
+| POST | `/api/auth/change-password` | Bearer 登录后提交 `{"email_code": "验证码", "password": "新密码"}`，使用 Django 哈希修改密码 |
+| POST | `/api/auth/change-email` | Bearer 登录后提交 `{"email_code": "验证码", "email": "新邮箱"}`，修改邮箱 |
 | POST | `/api/auth/refresh` | `{"refresh_token": "..."}`，轮换并返回新的 token 对 |
 | POST | `/api/auth/mqtt-auth` | `{"access_token": "..."}`，返回 MQTT broker 所需的 allow/deny 与 ACL |
 | GET | `/api/auth/me` | Header `Authorization: Bearer <access_token>`，返回当前用户信息 |
@@ -240,6 +242,8 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 `{"email": "ex@a.com", "email_code": "123456"}`。验证码 5 分钟有效、只能使用一次，
 同一邮箱 60 秒内只能发送一次，最多尝试 5 次。SMTP SSL 465 配置读取 `SMTP_HOST`、
 `SMTP_USERNAME`、`SMTP_PASSWORD` 和 `SMTP_FROM_EMAIL`。
+
+修改密码时 `password` 通过 HTTPS 以明文请求字段传输，服务端调用 Django `set_password()` 使用默认密码哈希算法保存，不能传入客户端自行生成的 Django 哈希值。修改密码的验证码发送到当前邮箱；修改邮箱的验证码发送到待设置的新邮箱。
 
 `/api/auth/mqtt-auth` 返回 MQTT 鉴权原始结构，不使用 `ResponseBase` 包装：
 
