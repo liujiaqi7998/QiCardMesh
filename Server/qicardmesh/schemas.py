@@ -263,7 +263,7 @@ ENDPOINTS = {
                                    503: "50302：认证缓存不可用"}),
     "auth-email-send": Endpoint(operation_id="emailSend", summary="发送邮箱验证码",
                                 request=EmailSendRequest, response=EmailSendResponse, public=True,
-                                description="发送邮箱验证码前必须提交同一 session 获取的图形验证码 captcha（或 captcha_code）。字母不区分大小写。通过 SMTP SSL 465 发送 HTML 邮件。邮箱 60 秒内只能发送一次。",
+                                description="发送邮箱验证码前必须提交同一 session 获取的图形验证码 captcha（或 captcha_code）。字母不区分大小写。通过 SMTP SSL 465 发送 HTML 邮件。同一邮箱 30 秒内只能发送一次。",
                                 errors={**INPUT_ERRORS, 429: "42901：发送过于频繁",
                                         400: "40001：JSON 无效；40002：参数无效；40005：图形验证码错误或已过期",
                                         503: "50301：邮件发送失败；50302：认证缓存不可用"}),
