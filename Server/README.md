@@ -214,8 +214,10 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 认证接口统一返回以下结构：
 
 ```json
-{"code": "0", "message": "success", "data": {}}
+{"code": 200, "message": "success", "data": {}}
 ```
+
+`code` 为业务码：`200` 表示成功；错误码由 `config/error.py` 统一维护，使用五位数字。
 
 令牌会写入 Redis（默认 `redis://127.0.0.1:6379/12`，可用 `REDIS_URL` 修改）。
 `ACCESS_TOKEN_TTL` 默认 7 天（604800 秒），`REFRESH_TOKEN_TTL` 默认 30 天。

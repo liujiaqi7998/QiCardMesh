@@ -16,7 +16,7 @@ def _object(properties):
 
 def _envelope(data):
     return _object({
-        "code": {"type": "string", "enum": ["0"]},
+        "code": {"type": "integer", "description": "200 为成功；业务错误码为五位数字", "example": 200},
         "message": {"type": "string"},
         "data": data,
     })
@@ -59,12 +59,12 @@ def build_schema():
         "expires_in": {"type": "integer", "description": "Access token 有效期，单位：秒"},
     }
     protected_errors = {
-        401: "AUTH_TOKEN_INVALID：令牌无效或过期；AUTH_USER_INVALID：用户不存在或停用",
-        405: "METHOD_NOT_ALLOWED：请求方法不支持（通过认证后）",
+        401: "40102：令牌无效或过期；40103：用户不存在或停用",
+        405: "40501：请求方法不支持（通过认证后）",
     }
     input_errors = {
-        400: "INVALID_JSON：请求体不是 JSON 对象；INVALID_ARGUMENT：必填参数为空或无效",
-        405: "METHOD_NOT_ALLOWED：请求方法不支持",
+        400: "40001：请求体不是 JSON 对象；40002：必填参数为空或无效",
+        405: "40501：请求方法不支持",
     }
     schemas = {
         "User": _object({"id": {"type": "integer"}, "username": string, "email": string}),
@@ -80,7 +80,7 @@ def build_schema():
         "ApiResponse": _envelope(_object({"user": _ref("User")})),
         "LogoutResponse": _envelope(null),
         "ErrorResponse": _object({
-            "code": {"type": "string", "description": "业务错误码，见各 HTTP 状态的说明", "example": "AUTH_TOKEN_INVALID"},
+            "code": {"type": "integer", "description": "200 为成功；业务错误码为五位数字", "example": 40102},
             "message": {"type": "string", "example": "access_token 无效或已过期"},
             "data": null,
         }),
@@ -138,12 +138,12 @@ def build_schema():
             )},
             reverse("auth-login"): {"post": _operation(
                 "login", "登录", "LoginResponse", request="LoginRequest", public=True,
-                errors={**input_errors, 401: "AUTH_INVALID_CREDENTIALS：用户名或密码错误"},
+                errors={**input_errors, 401: "40101：用户名或密码错误"},
             )},
             reverse("auth-refresh"): {"post": _operation(
                 "refresh", "刷新令牌", "RefreshResponse", request="RefreshRequest", public=True,
                 description="refresh_token 只能使用一次；成功后旧 access/refresh token 均失效。",
-                errors={**input_errors, 401: "AUTH_REFRESH_INVALID：refresh_token 无效或已过期"},
+                errors={**input_errors, 401: "40104：refresh_token 无效或已过期"},
             )},
             reverse("mqtt-auth"): {"post": mqtt},
             reverse("auth-me"): {"get": _operation(

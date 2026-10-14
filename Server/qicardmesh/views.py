@@ -7,6 +7,8 @@ from django.contrib.auth import get_user_model
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
+from config.error import ErrorCode
+
 from .auth import bearer_required
 from .response import response_base
 from .tokens import get_access_session, issue_tokens, refresh_tokens, revoke_session
@@ -21,7 +23,7 @@ def _json_body(request: HttpRequest):
 
 
 def _method_error():
-    return response_base(None, code="METHOD_NOT_ALLOWED", message="请求方法不支持", status=405)
+    return response_base(None, code=ErrorCode.METHOD_NOT_ALLOWED)
 
 
 def _user_data(user):
@@ -75,12 +77,12 @@ def login(request):
         return _method_error()
     payload = _json_body(request)
     if payload is None:
-        return response_base(None, code="INVALID_JSON", message="请求体必须是 JSON 对象", status=400)
+        return response_base(None, code=ErrorCode.INVALID_JSON)
 
     username = str(payload.get("username", "")).strip()
     password = payload.get("password")
     if not username or not isinstance(password, str) or not password:
-        return response_base(None, code="INVALID_ARGUMENT", message="username 和 password 不能为空", status=400)
+        return response_base(None, code=ErrorCode.INVALID_ARGUMENT)
 
     user_model = get_user_model()
     login_name = username
@@ -90,7 +92,7 @@ def login(request):
             login_name = user.get_username()
     user = authenticate(request, username=login_name, password=password)
     if user is None or not user.is_active:
-        return response_base(None, code="AUTH_INVALID_CREDENTIALS", message="用户名或密码错误", status=401)
+        return response_base(None, code=ErrorCode.INVALID_CREDENTIALS)
 
     pair = issue_tokens(user.id)
     return response_base(
@@ -110,14 +112,14 @@ def refresh(request):
         return _method_error()
     payload = _json_body(request)
     if payload is None:
-        return response_base(None, code="INVALID_JSON", message="请求体必须是 JSON 对象", status=400)
+        return response_base(None, code=ErrorCode.INVALID_JSON)
     refresh_token = payload.get("refresh_token")
     if not isinstance(refresh_token, str) or not refresh_token.strip():
-        return response_base(None, code="INVALID_ARGUMENT", message="refresh_token 不能为空", status=400)
+        return response_base(None, code=ErrorCode.INVALID_ARGUMENT)
 
     pair = refresh_tokens(refresh_token.strip())
     if pair is None:
-        return response_base(None, code="AUTH_REFRESH_INVALID", message="refresh_token 无效或已过期", status=401)
+        return response_base(None, code=ErrorCode.REFRESH_TOKEN_INVALID)
 
     return response_base(
         {

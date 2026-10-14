@@ -2,6 +2,8 @@ from functools import wraps
 
 from django.contrib.auth import get_user_model
 
+from config.error import ErrorCode
+
 from .response import response_base
 from .tokens import get_access_session
 
@@ -22,8 +24,7 @@ def bearer_required(view):
         if not session:
             return response_base(
                 None,
-                code="AUTH_TOKEN_INVALID",
-                message="access_token 无效或已过期",
+                code=ErrorCode.TOKEN_INVALID,
                 status=401,
             )
 
@@ -31,8 +32,7 @@ def bearer_required(view):
         if user is None:
             return response_base(
                 None,
-                code="AUTH_USER_INVALID",
-                message="用户不存在或已停用",
+                code=ErrorCode.USER_INVALID,
                 status=401,
             )
         request.api_user = user

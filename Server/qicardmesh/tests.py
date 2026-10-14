@@ -36,7 +36,7 @@ class AuthenticationApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["code"], "0")
+        self.assertEqual(body["code"], 200)
         self.assertEqual(body["data"]["token_type"], "Bearer")
         self.assertTrue(body["data"]["access_token"].startswith("access_"))
         self.assertTrue(body["data"]["refresh_token"].startswith("refresh_"))
@@ -110,6 +110,22 @@ class AuthenticationApiTests(TestCase):
             "username": "alice",
             "email": "Alice@example.com",
         })
+
+    def test_error_responses_use_central_five_digit_business_codes(self):
+        invalid_json = self.client.post(
+            "/api/auth/login", data="[]", content_type="application/json"
+        )
+        self.assertEqual(invalid_json.status_code, 400)
+        self.assertEqual(invalid_json.json()["code"], 40001)
+        self.assertEqual(invalid_json.json()["message"], "请求体必须是 JSON 对象")
+
+        invalid_token = self.client.get("/api/auth/me")
+        self.assertEqual(invalid_token.status_code, 401)
+        self.assertEqual(invalid_token.json()["code"], 40102)
+
+        method_error = self.client.get("/api/auth/login")
+        self.assertEqual(method_error.status_code, 405)
+        self.assertEqual(method_error.json()["code"], 40501)
 
 
 class CsrfDisabledTests(TestCase):
