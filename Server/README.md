@@ -229,7 +229,9 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 | POST | `/api/auth/logout` | Header `Authorization: Bearer <access_token>`，撤销当前会话 |
 | GET | `/api` | 需要 Bearer access token 的示例受保护接口 |
 
-登录和刷新返回的 `refresh_token` 为单次使用令牌；刷新成功后旧的 access/refresh token 会失效。
+登录响应只返回 token 信息，不包含用户对象。`access_token` 统一使用 `access_` 前缀，
+`refresh_token` 统一使用 `refresh_` 前缀。登录和刷新返回的 `refresh_token` 为单次使用令牌；
+刷新成功后旧的 access/refresh token 会失效。
 
 `/api/auth/mqtt-auth` 返回 MQTT 鉴权原始结构，不使用 `ResponseBase` 包装：
 

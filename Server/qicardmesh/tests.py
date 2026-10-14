@@ -38,8 +38,9 @@ class AuthenticationApiTests(TestCase):
         body = response.json()
         self.assertEqual(body["code"], "0")
         self.assertEqual(body["data"]["token_type"], "Bearer")
-        self.assertTrue(body["data"]["access_token"])
-        self.assertTrue(body["data"]["refresh_token"])
+        self.assertTrue(body["data"]["access_token"].startswith("access_"))
+        self.assertTrue(body["data"]["refresh_token"].startswith("refresh_"))
+        self.assertNotIn("user", body["data"])
 
     def test_refresh_rotates_pair_and_old_access_is_rejected(self):
         login = self.post_json(

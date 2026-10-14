@@ -99,7 +99,6 @@ def login(request):
             "access_token": pair.access_token,
             "refresh_token": pair.refresh_token,
             "expires_in": settings.ACCESS_TOKEN_TTL,
-            "user": _user_data(user),
         },
         message="登录成功",
     )

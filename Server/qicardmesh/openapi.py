@@ -74,7 +74,7 @@ def build_schema():
         }),
         "RefreshRequest": _object({"refresh_token": token}),
         "MqttAuthRequest": _object({"access_token": token}),
-        "LoginResponse": _envelope(_object({**token_properties, "user": _ref("User")})),
+        "LoginResponse": _envelope(_object(token_properties)),
         "RefreshResponse": _envelope(_object(token_properties)),
         "UserResponse": _envelope(_ref("User")),
         "ApiResponse": _envelope(_object({"user": _ref("User")})),
@@ -121,7 +121,7 @@ def build_schema():
         "info": {
             "title": "QiCardMesh API",
             "version": "1.0.0",
-            "description": "先调用登录接口，再将 data.access_token 填入 Authorize（无需 Bearer 前缀）。"
+            "description": "先调用登录接口，再将带 access_ 前缀的 data.access_token 填入 Authorize（无需 Bearer 前缀）。"
                            "刷新会使旧 access_token 和 refresh_token 失效，请重新授权。"
                            "接口同时支持末尾带 / 的路径，文档仅展示无末尾 / 的版本。",
         },
@@ -158,7 +158,7 @@ def build_schema():
             "securitySchemes": {
                 "bearerAuth": {
                     "type": "http", "scheme": "bearer",
-                    "description": "登录返回的 access_token，直接粘贴令牌，无需 Bearer 前缀。",
+                    "description": "登录返回的 access_token 带 access_ 前缀，直接粘贴令牌，无需 Bearer 前缀。",
                 },
             },
             "schemas": schemas,

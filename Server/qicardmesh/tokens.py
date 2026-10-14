@@ -12,6 +12,8 @@ from django.core.cache import cache
 
 ACCESS_PREFIX = "qicardmesh:auth:access:"
 REFRESH_PREFIX = "qicardmesh:auth:refresh:"
+ACCESS_TOKEN_PREFIX = "access_"
+REFRESH_TOKEN_PREFIX = "refresh_"
 
 
 @dataclass(frozen=True)
@@ -39,8 +41,8 @@ def _refresh_key(token: str) -> str:
 
 def issue_tokens(user_id: int) -> TokenPair:
     session_id = uuid.uuid4().hex
-    access_token = secrets.token_urlsafe(32)
-    refresh_token = secrets.token_urlsafe(48)
+    access_token = f"{ACCESS_TOKEN_PREFIX}{secrets.token_urlsafe(32)}"
+    refresh_token = f"{REFRESH_TOKEN_PREFIX}{secrets.token_urlsafe(48)}"
     access_digest = _digest(access_token)
     refresh_digest = _digest(refresh_token)
     access_expires_at = int(time.time()) + settings.ACCESS_TOKEN_TTL
