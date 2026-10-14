@@ -1,9 +1,14 @@
 import json
+import uuid
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import AsyncClient, Client, TestCase, override_settings
+from django.http import HttpResponse
+from django.test import AsyncClient, Client, RequestFactory, TestCase, override_settings
 
+from config.context import get_request_context
+
+from .middleware import RequestIdMiddleware
 from .passwords import hash_password_for_api
 
 
@@ -170,6 +175,43 @@ class AuthenticationApiTests(TestCase):
         method_error = self.client.get("/api/auth/login")
         self.assertEqual(method_error.status_code, 405)
         self.assertEqual(method_error.json()["code"], 40501)
+
+
+class RequestIdMiddlewareTests(TestCase):
+    def test_every_response_has_a_unique_request_id(self):
+        first = self.client.get("/api/openapi.json")
+        second = self.client.get("/api/openapi.json")
+        first_id = first["X-Request-ID"]
+        second_id = second["X-Request-ID"]
+        uuid.UUID(first_id)
+        uuid.UUID(second_id)
+        self.assertNotEqual(first_id, second_id)
+
+    def test_handler_can_read_the_request_id_returned_in_response(self):
+        captured = {}
+
+        def handler(request):
+            captured["request_id"] = request.request_id
+            context = get_request_context()
+            captured["context_id"] = context.request_id
+            captured["client_ip"] = context.client_ip
+            captured["device_id"] = context.device_id
+            captured["platform"] = context.platform
+            return HttpResponse("ok")
+
+        request = RequestFactory().get(
+            "/test-request-id",
+            HTTP_CF_CONNECTING_IP="203.0.113.10",
+            HTTP_X_DEVICE_ID=" device-123 ",
+            HTTP_X_PLATFORM=" android ",
+        )
+        response = RequestIdMiddleware(handler)(request)
+        self.assertEqual(response["X-Request-ID"], captured["request_id"])
+        self.assertEqual(response["X-Request-ID"], captured["context_id"])
+        self.assertEqual(captured["client_ip"], "203.0.113.10")
+        self.assertEqual(captured["device_id"], "device-123")
+        self.assertEqual(captured["platform"], "android")
+        self.assertIsNone(get_request_context().request_id)
 
 
 class CsrfDisabledTests(TestCase):

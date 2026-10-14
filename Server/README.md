@@ -224,6 +224,11 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 
 `code` 为业务码：`200` 表示成功；错误码由 `config/error.py` 统一维护，使用五位数字。
 
+每条请求都会由 `RequestIdMiddleware` 生成 UUID 请求标识，handler 可通过
+`request.request_id` 或 `config.context.get_request_context()` 读取。中间件还会将
+`config.utils.get_client_ip(request)` 的结果保存为 `client_ip`，并读取 `X-Device-ID`、
+`X-Platform` 保存为 `device_id`、`platform`。响应会统一返回相同的 `X-Request-ID` Header，便于日志关联和问题排查。
+
 令牌会写入 Redis（默认 `redis://127.0.0.1:6379/12`，可用 `REDIS_URL` 修改）。
 `ACCESS_TOKEN_TTL` 默认 7 天（604800 秒），`REFRESH_TOKEN_TTL` 默认 30 天。
 
