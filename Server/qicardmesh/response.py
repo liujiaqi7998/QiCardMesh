@@ -1,26 +1,15 @@
-from dataclasses import asdict, dataclass
+from typing import Any
 
 from django.http import JsonResponse
 
 from config.error import ErrorCode, http_status, normalize_code
 
-
-@dataclass(frozen=True)
-class ResponseBase:
-    """The wire format shared by all QiCardMesh API responses."""
-
-    code: int
-    message: str
-    data: object = None
-
-    def as_dict(self):
-        return asdict(self)
+from .schemas import ErrorResponse, ResponseBase
 
 
 def response_base(data=None, *, code=ErrorCode.SUCCESS, message=None, status=None):
-    """Return the common response envelope used by every API endpoint."""
+    """Return a Pydantic-validated response envelope, including auth errors."""
     normalized_code, default_message = normalize_code(code)
-    return JsonResponse(
-        ResponseBase(normalized_code, message or default_message, data).as_dict(),
-        status=status or http_status(normalized_code),
-    )
+    model = ResponseBase[Any] if normalized_code == ErrorCode.SUCCESS else ErrorResponse
+    body = model(code=normalized_code, message=message or default_message, data=data)
+    return JsonResponse(body.model_dump(mode="json"), status=status or http_status(normalized_code))

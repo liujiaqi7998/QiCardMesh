@@ -12,10 +12,12 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.core.mail import EmailMultiAlternatives
-from django.core.validators import validate_email
 from django.template.loader import render_to_string
+from pydantic import ValidationError as SchemaValidationError
 
 from config.error import ErrorCode
+
+from .schemas import EMAIL_ADAPTER, EMAIL_CODE_ADAPTER, EmailCodeRecord
 
 
 class EmailCodeError(Exception):
@@ -25,11 +27,10 @@ class EmailCodeError(Exception):
 
 
 def normalize_email(email):
-    if not isinstance(email, str):
-        raise ValidationError('Invalid email')
-    email = email.strip().lower()
-    validate_email(email)
-    return email
+    try:
+        return EMAIL_ADAPTER.validate_python(email)
+    except SchemaValidationError as exc:
+        raise ValidationError('Invalid email') from exc
 
 
 def _key(email):
@@ -69,11 +70,9 @@ def send_email_code(email):
         # Retain the cooldown on failure to prevent retry storms.
         raise EmailCodeError(ErrorCode.EMAIL_SEND_FAILED) from exc
 
-    cache.set(key, {
-        'digest': _digest(email, generation, code),
-        'generation': generation,
-        'expires_at': time.time() + settings.EMAIL_CODE_TTL,
-    }, timeout=settings.EMAIL_CODE_TTL)
+    record = EmailCodeRecord(digest=_digest(email, generation, code), generation=generation,
+                             expires_at=time.time() + settings.EMAIL_CODE_TTL)
+    cache.set(key, record.model_dump(), timeout=settings.EMAIL_CODE_TTL)
 
 
 def verify_email_code(email, email_code):
@@ -87,16 +86,22 @@ def verify_email_code(email, email_code):
         email = normalize_email(email)
     except ValidationError:
         return False
-    if not isinstance(email_code, str) or len(email_code) != 6 or not email_code.isascii() or not email_code.isdigit():
+    try:
+        email_code = EMAIL_CODE_ADAPTER.validate_python(email_code)
+    except SchemaValidationError:
         return False
     key = _key(email)
     record = cache.get(key)
     if not record:
         return False
-    remaining = math.ceil(record['expires_at'] - time.time())
+    try:
+        record = EmailCodeRecord.model_validate(record)
+    except SchemaValidationError:
+        return False
+    remaining = math.ceil(record.expires_at - time.time())
     if remaining <= 0:
         return False
-    generation_key = key + ':' + record['generation']
+    generation_key = key + ':' + record.generation
     if cache.get(generation_key + ':used'):
         return False
     # add() and incr() are atomic in Django's Redis cache backend.
@@ -108,6 +113,6 @@ def verify_email_code(email, email_code):
         return False
     if attempts > settings.EMAIL_CODE_MAX_ATTEMPTS:
         return False
-    if not hmac.compare_digest(record['digest'], _digest(email, record['generation'], email_code)):
+    if not hmac.compare_digest(record.digest, _digest(email, record.generation, email_code)):
         return False
     return cache.add(generation_key + ':used', True, timeout=remaining)

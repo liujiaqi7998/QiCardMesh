@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import AsyncClient, Client, TestCase, override_settings
 
+from .passwords import hash_password_for_api
+
 
 @override_settings(
     CACHES={
@@ -18,7 +20,7 @@ class AuthenticationApiTests(TestCase):
         self.user = get_user_model().objects.create_user(
             username="alice",
             email="Alice@example.com",
-            password="correct horse battery staple",
+            password=hash_password_for_api("correct horse battery staple"),
         )
 
     def post_json(self, path, payload, **extra):
@@ -32,7 +34,7 @@ class AuthenticationApiTests(TestCase):
     def test_login_accepts_email_and_returns_token_pair(self):
         response = self.post_json(
             "/api/auth/login",
-            {"username": "alice@EXAMPLE.com", "password": "correct horse battery staple"},
+            {"username": "alice@EXAMPLE.com", "password": hash_password_for_api("correct horse battery staple")},
         )
         self.assertEqual(response.status_code, 200)
         body = response.json()
@@ -42,10 +44,52 @@ class AuthenticationApiTests(TestCase):
         self.assertTrue(body["data"]["refresh_token"].startswith("refresh_"))
         self.assertNotIn("user", body["data"])
 
+    def test_plain_password_login_is_rejected(self):
+        response = self.post_json(
+            "/api/auth/login",
+            {"username": "alice", "password": "correct horse battery staple"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], 40003)
+
+    def test_password_login_is_locked_after_five_failures(self):
+        wrong_password = hash_password_for_api("wrong password")
+        for _ in range(5):
+            response = self.post_json(
+                "/api/auth/login",
+                {"username": "alice", "password": wrong_password},
+            )
+            self.assertEqual(response.status_code, 401)
+            self.assertEqual(response.json()["code"], 40101)
+
+        response = self.post_json(
+            "/api/auth/login",
+            {"username": "alice", "password": hash_password_for_api("correct horse battery staple")},
+        )
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.json()["code"], 42902)
+
+    def test_successful_password_login_clears_failure_counter(self):
+        wrong_password = hash_password_for_api("wrong password")
+        for _ in range(4):
+            self.post_json("/api/auth/login", {"username": "alice", "password": wrong_password})
+        response = self.post_json(
+            "/api/auth/login",
+            {"username": "alice", "password": hash_password_for_api("correct horse battery staple")},
+        )
+        self.assertEqual(response.status_code, 200)
+
+        response = self.post_json(
+            "/api/auth/login",
+            {"username": "alice", "password": wrong_password},
+        )
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["code"], 40101)
+
     def test_refresh_rotates_pair_and_old_access_is_rejected(self):
         login = self.post_json(
             "/api/auth/login",
-            {"username": "alice", "password": "correct horse battery staple"},
+            {"username": "alice", "password": hash_password_for_api("correct horse battery staple")},
         ).json()["data"]
         refreshed = self.post_json(
             "/api/auth/refresh", {"refresh_token": login["refresh_token"]}
@@ -61,7 +105,7 @@ class AuthenticationApiTests(TestCase):
     def test_logout_revokes_access_and_refresh_tokens(self):
         login = self.post_json(
             "/api/auth/login",
-            {"username": "alice", "password": "correct horse battery staple"},
+            {"username": "alice", "password": hash_password_for_api("correct horse battery staple")},
         ).json()["data"]
         response = self.client.post(
             "/api/auth/logout", HTTP_AUTHORIZATION=f"Bearer {login['access_token']}"
@@ -79,7 +123,7 @@ class AuthenticationApiTests(TestCase):
     def test_mqtt_auth_returns_user_acl_and_expiration(self):
         login = self.post_json(
             "/api/auth/login",
-            {"username": "alice", "password": "correct horse battery staple"},
+            {"username": "alice", "password": hash_password_for_api("correct horse battery staple")},
         ).json()["data"]
         response = self.post_json(
             "/api/auth/mqtt-auth", {"access_token": login["access_token"]}
@@ -99,7 +143,7 @@ class AuthenticationApiTests(TestCase):
     def test_me_returns_authenticated_user(self):
         login = self.post_json(
             "/api/auth/login",
-            {"username": "alice", "password": "correct horse battery staple"},
+            {"username": "alice", "password": hash_password_for_api("correct horse battery staple")},
         ).json()["data"]
         response = self.client.get(
             "/api/auth/me", HTTP_AUTHORIZATION=f"Bearer {login['access_token']}"

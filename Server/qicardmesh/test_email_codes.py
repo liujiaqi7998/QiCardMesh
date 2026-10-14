@@ -12,6 +12,7 @@ from django.test import TestCase, override_settings
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from .email_codes import verify_email_code
+from .passwords import hash_password_for_api
 
 
 @override_settings(
@@ -23,7 +24,8 @@ class EmailCodeTests(TestCase):
     def setUp(self):
         cache.clear()
         self.user = get_user_model().objects.create_user(
-            username='email-user', email='alice@example.com', password='existing-password'
+            username='email-user', email='alice@example.com',
+            password=hash_password_for_api('existing-password')
         )
 
     def post(self, path, data):
@@ -36,6 +38,12 @@ class EmailCodeTests(TestCase):
 
     def login(self, code, email='alice@example.com'):
         return self.post('/api/auth/login', {'email': email, 'email_code': code})
+
+    def password_login(self):
+        return self.post('/api/auth/login', {
+            'username': 'email-user',
+            'password': hash_password_for_api('existing-password'),
+        })
 
     def test_send_html_mail_and_login_once(self):
         with patch('qicardmesh.email_codes.secrets.randbelow', return_value=123):
@@ -74,7 +82,21 @@ class EmailCodeTests(TestCase):
         wrong = '999999' if code != '999999' else '000000'
         for _ in range(settings.EMAIL_CODE_MAX_ATTEMPTS):
             self.assertEqual(self.login(wrong).json()['code'], 40105)
-        self.assertEqual(self.login(code).json()['code'], 40105)
+        self.assertEqual(self.login(code).json()['code'], 42902)
+
+    def test_email_code_login_is_locked_after_five_failures(self):
+        code = self.send_code()
+        wrong = '999999' if code != '999999' else '000000'
+        for _ in range(5):
+            self.assertEqual(self.login(wrong).json()['code'], 40105)
+        self.assertEqual(self.login(code).json()['code'], 42902)
+
+    def test_successful_email_code_login_clears_failure_counter(self):
+        code = self.send_code()
+        wrong = '999999' if code != '999999' else '000000'
+        for _ in range(4):
+            self.assertEqual(self.login(wrong).json()['code'], 40105)
+        self.assertEqual(self.login(code).status_code, 200)
 
     def test_wrong_email_cannot_use_code(self):
         code = self.send_code()
@@ -131,3 +153,75 @@ class EmailCodeTests(TestCase):
                 self.assertEqual(self.login(code).json()['code'], 40002)
         mixed = {'email': 'alice@example.com', 'email_code': '123456', 'username': 'email-user', 'password': 'existing-password'}
         self.assertEqual(self.post('/api/auth/login', mixed).json()['code'], 40002)
+
+    def test_change_password_stores_django_hash_of_client_digest(self):
+        login = self.password_login().json()['data']
+        code = self.send_code()
+        client_password = hash_password_for_api('new-secure-password-123')
+        response = self.client.post(
+            '/api/auth/change-password',
+            data={'email_code': code, 'password': client_password},
+            content_type='application/json',
+            HTTP_AUTHORIZATION='Bearer ' + login['access_token'],
+        )
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.password.startswith('pbkdf2_'))
+        self.assertTrue(self.user.check_password(client_password))
+        self.assertFalse(self.user.check_password('new-secure-password-123'))
+        self.assertEqual(self.login(code).json()['code'], 40105)
+        new_login = self.post('/api/auth/login', {
+            'username': 'email-user', 'password': client_password
+        })
+        self.assertEqual(new_login.status_code, 200)
+
+    def test_change_password_rejects_plaintext_before_consuming_code(self):
+        login = self.password_login().json()['data']
+        code = self.send_code()
+        response = self.client.post(
+            '/api/auth/change-password',
+            data={'email_code': code, 'password': 'new-secure-password-123'},
+            content_type='application/json',
+            HTTP_AUTHORIZATION='Bearer ' + login['access_token'],
+        )
+        self.assertEqual(response.json()['code'], 40003)
+        self.assertTrue(verify_email_code('alice@example.com', code))
+
+    def test_change_email_verifies_new_email_and_rejects_duplicates(self):
+        login = self.password_login().json()['data']
+        new_email = 'new-email@example.com'
+        code = self.send_code(new_email)
+        response = self.client.post(
+            '/api/auth/change-email',
+            data={'email_code': code, 'email': new_email},
+            content_type='application/json',
+            HTTP_AUTHORIZATION='Bearer ' + login['access_token'],
+        )
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, new_email)
+        self.assertFalse(verify_email_code(new_email, code))
+
+        get_user_model().objects.create_user(username='other', email='occupied@example.com')
+        occupied_code = self.send_code('occupied@example.com')
+        response = self.client.post(
+            '/api/auth/change-email',
+            data={'email_code': occupied_code, 'email': 'occupied@example.com'},
+            content_type='application/json',
+            HTTP_AUTHORIZATION='Bearer ' + login['access_token'],
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 40901)
+        self.assertTrue(verify_email_code('occupied@example.com', occupied_code))
+
+    def test_change_email_invalid_code_does_not_change_email(self):
+        login = self.password_login().json()['data']
+        response = self.client.post(
+            '/api/auth/change-email',
+            data={'email_code': '123456', 'email': 'new-email@example.com'},
+            content_type='application/json',
+            HTTP_AUTHORIZATION='Bearer ' + login['access_token'],
+        )
+        self.assertEqual(response.status_code, 401)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'alice@example.com')

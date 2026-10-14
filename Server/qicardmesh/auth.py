@@ -32,7 +32,7 @@ def bearer_required(view):
                 status=401,
             )
 
-        user = get_user_model().objects.filter(id=session.get("user_id"), is_active=True).first()
+        user = get_user_model().objects.filter(id=session.user_id, is_active=True).first()
         if user is None:
             return response_base(
                 None,

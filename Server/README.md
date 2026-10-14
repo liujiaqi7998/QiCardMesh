@@ -196,18 +196,23 @@ python -m uvicorn config.asgi:application --reload --lifespan off
 
 ### OpenAPI / Swagger 调试
 
-访问 `/api/docs/` 查看全部 6 个接口的参数、响应、错误码，并通过 **Try it out** 发起真实请求。
-`/api/openapi.json` 提供 OpenAPI 3.0.3 文档，可导入 Postman、Apifox 等工具。
+访问 `/api/docs/` 查看全部接口的参数、响应、错误码，并通过 **Try it out** 发起真实请求。
+`/api/openapi.json` 提供 OpenAPI 3.1.0 文档，可导入 Postman、Apifox 等工具。
 文档与 JSON 无需登录即可访问；接口本身仍执行原有的认证检查。
 
-1. 展开 `POST /api/auth/login`，点击 **Try it out**，输入实际用户名（或邮箱）及密码，点击 **Execute**。
+1. 展开 `POST /api/auth/login`，点击 **Try it out**，输入用户名（或邮箱）及客户端计算出的 `sha256$...` 密码摘要，点击 **Execute**。
 2. 复制响应的 `data.access_token`，点击页面的 **Authorize**，仅粘贴 token，无需添加 `Bearer ` 前缀。
 3. 即可调试 `/api`、`/api/auth/me`、`/api/auth/logout`；MQTT 鉴权需要将 token 填入 JSON 请求体。
 4. 刷新令牌后需用新 access token 重新 **Authorize**；刷新页面不会保留授权。
 
-当前为原生 Django 视图，使用 `qicardmesh/openapi.py` 显式维护接口契约，
-通过 Swagger UI 展示，不额外引入 Django REST Framework。
-新增接口或修改参数、响应时，需要同步更新该文件中的 schema 和 paths；路径通过 Django 命名路由解析。
+服务端统一使用 Pydantic v2，所有请求、响应、令牌会话和验证码缓存模型集中在 `qicardmesh/schemas.py`。
+`ENDPOINTS` 注册每个接口的方法、请求模型、响应模型和文档说明；
+原生 Django 视图通过 `qicardmesh/api.py` 的 `@api_endpoint("路由名")` 自动校验请求并序列化响应。
+视图接收已校验的模型对象、返回对应响应模型，业务错误继续使用 `response_base()`。
+校验使用严格类型，保留原有业务错误码，以及 MQTT 拒绝时 HTTP 200 的原始响应格式。
+OpenAPI 的字段定义由这些 Pydantic 模型自动生成，由 `qicardmesh/openapi.py` 提供 JSON 和 Swagger UI 视图。
+新增接口时，在 `schemas.py` 定义模型并注册 `ENDPOINTS`，在视图添加装饰器和 Django 命名路由；
+修改字段只需更新模型，无需再手写一份 OpenAPI schema。路径通过 Django 命名路由解析。
 Swagger UI 的 JS/CSS 使用固定版本 `5.33.2` 的 jsDelivr CDN，浏览器需能访问该 CDN；
 OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需要 Redis。
 
@@ -224,9 +229,9 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/auth/login` | 支持 `{"username": "用户名或邮箱", "password": "密码"}` 或 `{"email": "邮箱", "email_code": "验证码"}`，返回 Bearer access/refresh token |
+| POST | `/api/auth/login` | 支持 `{"username": "用户名或邮箱", "password": "sha256$..."}` 或 `{"email": "邮箱", "email_code": "验证码"}`，返回 Bearer access/refresh token |
 | POST | `/api/auth/email-send` | `{"email": "ex@a.com"}`，发送 6 位邮箱验证码 |
-| POST | `/api/auth/change-password` | Bearer 登录后提交 `{"email_code": "验证码", "password": "新密码"}`，使用 Django 哈希修改密码 |
+| POST | `/api/auth/change-password` | Bearer 登录后提交 `{"email_code": "验证码", "password": "sha256$..."}`，使用 Django 哈希修改密码 |
 | POST | `/api/auth/change-email` | Bearer 登录后提交 `{"email_code": "验证码", "email": "新邮箱"}`，修改邮箱 |
 | POST | `/api/auth/refresh` | `{"refresh_token": "..."}`，轮换并返回新的 token 对 |
 | POST | `/api/auth/mqtt-auth` | `{"access_token": "..."}`，返回 MQTT broker 所需的 allow/deny 与 ACL |
@@ -238,12 +243,20 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 `refresh_token` 统一使用 `refresh_` 前缀。登录和刷新返回的 `refresh_token` 为单次使用令牌；
 刷新成功后旧的 access/refresh token 会失效。
 
+密码登录或邮箱验证码登录连续失败 5 次后，会分别锁定对应登录标识 1 分钟，锁定期间返回业务码 `42902`。
+
 登录也支持邮箱验证码：先调用 `/api/auth/email-send`，再提交
 `{"email": "ex@a.com", "email_code": "123456"}`。验证码 5 分钟有效、只能使用一次，
 同一邮箱 60 秒内只能发送一次，最多尝试 5 次。SMTP SSL 465 配置读取 `SMTP_HOST`、
 `SMTP_USERNAME`、`SMTP_PASSWORD` 和 `SMTP_FROM_EMAIL`。
 
-修改密码时 `password` 通过 HTTPS 以明文请求字段传输，服务端调用 Django `set_password()` 使用默认密码哈希算法保存，不能传入客户端自行生成的 Django 哈希值。修改密码的验证码发送到当前邮箱；修改邮箱的验证码发送到待设置的新邮箱。
+修改密码和用户名密码登录的 `password` 必须由客户端先计算为 `sha256$` 加 64 位小写 SHA-256 摘要，例如：
+
+```text
+sha256$ + SHA256(原始密码的 UTF-8 字节).hexdigest()
+```
+
+服务端不会接收原始密码，只会把客户端摘要交给 Django `set_password()`，数据库最终保存为 Django 标准密码哈希。固定摘要本身可以被重放，仍必须使用 HTTPS；不能传入客户端自行生成的 Django 数据库哈希值。修改密码的验证码发送到当前邮箱；修改邮箱的验证码发送到待设置的新邮箱。
 
 `/api/auth/mqtt-auth` 返回 MQTT 鉴权原始结构，不使用 `ResponseBase` 包装：
 
