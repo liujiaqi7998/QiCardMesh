@@ -8,8 +8,8 @@ from django.test import AsyncClient, Client, RequestFactory, TestCase, override_
 
 from config.context import get_request_context
 
-from .middleware import RequestIdMiddleware
-from .passwords import hash_password_for_api
+from qicardmesh.middleware import RequestIdMiddleware
+from qicardmesh.passwords import hash_password_for_api
 
 
 @override_settings(
@@ -253,3 +253,4 @@ class CsrfDisabledTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("_auth_user_id", client.session)
+

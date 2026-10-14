@@ -8,14 +8,14 @@ from django.urls import reverse
 from pydantic import BaseModel, ValidationError
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from .api import api_endpoint
-from .passwords import hash_password_for_api
-from .schemas import (
+from qicardmesh.api import api_endpoint
+from qicardmesh.passwords import hash_password_for_api
+from qicardmesh.schemas import (
     ENDPOINTS, AccessSession, ChangeEmailResponse, ChangePasswordResponse,
     EmailCodeLoginRequest, LoginRequest, PasswordLoginRequest, TokenPair, build_schema,
 )
-from .tokens import _access_key, _refresh_key, get_access_session, get_refresh_session, issue_tokens
-from .urls import urlpatterns
+from qicardmesh.tokens import _access_key, _refresh_key, get_access_session, get_refresh_session, issue_tokens
+from qicardmesh.urls import urlpatterns
 
 
 class ApiContractTests(SimpleTestCase):
@@ -197,3 +197,4 @@ class RequestValidationTests(TestCase):
             response = self.post('mqtt-auth', {'access_token': self.pair.access_token})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['result'], 'deny')
+

@@ -11,9 +11,9 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from .email_codes import verify_email_code
-from .passwords import hash_password_for_api
-from .captcha import CAPTCHA_SESSION_KEY
+from qicardmesh.email_codes import verify_email_code
+from qicardmesh.passwords import hash_password_for_api
+from qicardmesh.captcha import CAPTCHA_SESSION_KEY
 
 
 @override_settings(
@@ -253,3 +253,4 @@ class EmailCodeTests(TestCase):
         self.assertEqual(response.status_code, 401)
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, 'alice@example.com')
+
