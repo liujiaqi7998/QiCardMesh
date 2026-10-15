@@ -27,4 +27,8 @@ urlpatterns = [
     path("api/auth/me/", views.me),
     path("api/auth/logout", views.logout, name="auth-logout"),
     path("api/auth/logout/", views.logout),
+    path("api/auth/devices", views.devices, name="auth-devices"),
+    path("api/auth/devices/", views.devices),
+    path("api/auth/devices/<uuid:device_id>", views.device_delete, name="auth-device-delete"),
+    path("api/auth/devices/<uuid:device_id>/", views.device_delete),
 ]

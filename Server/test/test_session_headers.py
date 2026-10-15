@@ -22,7 +22,7 @@ class SessionHeaderTests(TestCase):
             with self.subTest(path=path):
                 response = Client().post(path, {
                     'username': 'session-user', 'password': self.password,
-                }, content_type='application/json', headers={'x-sessionid': session_id})
+                }, content_type='application/json', headers={'x-sessionid': session_id, 'X-Device-ID': 'session-test-device'})
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.wsgi_request.session.session_key, session_id)
                 self.assertIn(CAPTCHA_SESSION_KEY, response.wsgi_request.session)

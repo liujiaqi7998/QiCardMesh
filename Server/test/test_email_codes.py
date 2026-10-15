@@ -24,6 +24,7 @@ from qicardmesh.captcha import CAPTCHA_SESSION_KEY
 class EmailCodeTests(TestCase):
     def setUp(self):
         cache.clear()
+        self.client.defaults["HTTP_X_DEVICE_ID"] = "test-email-device"
         self.user = get_user_model().objects.create_user(
             username='email-user', email='alice@example.com',
             password=hash_password_for_api('existing-password')

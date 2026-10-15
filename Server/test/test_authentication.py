@@ -22,6 +22,7 @@ from qicardmesh.passwords import hash_password_for_api
 class AuthenticationApiTests(TestCase):
     def setUp(self):
         cache.clear()
+        self.client.defaults["HTTP_X_DEVICE_ID"] = "test-auth-device"
         self.user = get_user_model().objects.create_user(
             username="alice",
             email="Alice@example.com",

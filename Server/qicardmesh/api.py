@@ -4,6 +4,7 @@ import json
 from functools import wraps
 
 from django.http import JsonResponse
+from django.db import DatabaseError
 from pydantic import ValidationError
 
 from config.error import ErrorCode
@@ -38,9 +39,15 @@ def api_endpoint(route):
                     error_mapper = getattr(endpoint.request, "error_code", None)
                     code = (error_mapper(exc) if error_mapper else ErrorCode.INVALID_ARGUMENT)
                     return reject(code)
-                result = view(request, payload, *args, **kwargs)
+                try:
+                    result = view(request, payload, *args, **kwargs)
+                except DatabaseError:
+                    return reject(ErrorCode.AUTH_STORE_UNAVAILABLE)
             else:
-                result = view(request, *args, **kwargs)
+                try:
+                    result = view(request, *args, **kwargs)
+                except DatabaseError:
+                    return reject(ErrorCode.AUTH_STORE_UNAVAILABLE)
             if isinstance(result, JsonResponse):
                 # Business errors are already validated by response_base().
                 return result

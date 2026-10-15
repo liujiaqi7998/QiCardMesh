@@ -2,16 +2,21 @@ import time
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, update_session_auth_hash
+from django.db import DatabaseError
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from pydantic import ValidationError
 from redis.exceptions import RedisError
 
 from config.error import ErrorCode
+from config.context import get_request_context
 
 from .api import api_endpoint
 from .auth import bearer_required
 from .captcha import verify as verify_captcha
 from .email_codes import EmailCodeError, send_email_code, verify_email_code
 from .login_throttle import clear_login_failures, is_login_locked, record_login_failure
+from .models import LoginDevice
 from .response import response_base
 from .schemas import (
     ApiData, ApiResponse, ChangeEmailData, ChangeEmailRequest, ChangeEmailResponse,
@@ -19,8 +24,9 @@ from .schemas import (
     EmailSendData, EmailSendRequest, EmailSendResponse, LoginRequest, LoginResponse,
     LogoutResponse, MqttAcl, MqttAuthRequest, MqttAuthResponse, RefreshRequest,
     RefreshResponse, TokenData, User, UserResponse,
+    LoginHeaders, DeviceListQuery, DeviceInfo, DeviceListData, DeviceListResponse, DeviceDeleteResponse,
 )
-from .tokens import get_access_session, issue_tokens, refresh_tokens, revoke_session
+from .tokens import delete_device, get_access_session, issue_tokens, refresh_tokens, revoke_session
 
 
 def _user_data(user):
@@ -42,7 +48,7 @@ def mqtt_auth(request, payload: MqttAuthRequest):
     """Validate an access token for the MQTT broker's HTTP auth hook."""
     try:
         session = get_access_session(payload.access_token)
-    except RedisError:
+    except (RedisError, DatabaseError):
         return _mqtt_deny()
     if not session:
         return _mqtt_deny()
@@ -78,6 +84,12 @@ def email_send(request, payload: EmailSendRequest):
 @csrf_exempt
 @api_endpoint("auth-login")
 def login(request, payload: LoginRequest):
+    context = get_request_context()
+    try:
+        headers = LoginHeaders(device_id=context.device_id, platform=context.platform or "")
+    except ValidationError as exc:
+        code = ErrorCode.DEVICE_ID_INVALID if any(e['loc'][0] == 'device_id' for e in exc.errors()) else ErrorCode.INVALID_ARGUMENT
+        return response_base(code=code)
     credentials = payload.root
     user_model = get_user_model()
     if isinstance(credentials, EmailCodeLoginRequest):
@@ -117,7 +129,8 @@ def login(request, payload: LoginRequest):
         return response_base(code=ErrorCode.INVALID_CREDENTIALS)
 
     try:
-        pair = issue_tokens(user.id)
+        pair = issue_tokens(user.id, device_id=headers.device_id, platform=headers.platform,
+                            client_ip=context.client_ip)
     except RedisError:
         return response_base(code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
     return LoginResponse(data=_token_data(pair), message="登录成功")
@@ -193,3 +206,30 @@ def logout(request):
 @api_endpoint("api-root")
 def api_root(request):
     return ApiResponse(data=ApiData(user=_user_data(request.api_user)), message="认证成功")
+
+
+@bearer_required
+@api_endpoint("auth-devices")
+def devices(request):
+    try:
+        query = DeviceListQuery.model_validate(request.GET.dict())
+    except ValidationError:
+        return response_base(code=ErrorCode.INVALID_ARGUMENT)
+    rows = LoginDevice.objects.filter(user=request.api_user, expires_at__gt=timezone.now())
+    total = rows.count()
+    start = (query.page - 1) * query.page_size
+    items = [DeviceInfo(
+        id=row.id, device_id=row.device_id, platform=row.platform, client_ip=row.client_ip,
+        created_at=row.created_at, login_at=row.login_at, last_seen_at=row.last_seen_at,
+        expires_at=row.expires_at, is_current=row.session_id == request.api_access_session.session_id,
+    ) for row in rows[start:start + query.page_size]]
+    return DeviceListResponse(data=DeviceListData(items=items, total=total, page=query.page, page_size=query.page_size))
+
+
+@csrf_exempt
+@bearer_required
+@api_endpoint("auth-device-delete")
+def device_delete(request, device_id):
+    if not delete_device(request.api_user.pk, device_id):
+        return response_base(code=ErrorCode.DEVICE_NOT_FOUND)
+    return DeviceDeleteResponse(data=None, message="设备已退出登录")

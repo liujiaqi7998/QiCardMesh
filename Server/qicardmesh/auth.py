@@ -1,6 +1,7 @@
 from functools import wraps
 
 from django.contrib.auth import get_user_model
+from django.db import DatabaseError
 from redis.exceptions import RedisError
 
 from config.error import ErrorCode
@@ -23,8 +24,11 @@ def bearer_required(view):
         token = bearer_token(request)
         try:
             session = get_access_session(token)
+            user = get_user_model().objects.filter(id=session.user_id, is_active=True).first() if session else None
         except RedisError:
             return response_base(None, code=ErrorCode.AUTH_CACHE_UNAVAILABLE)
+        except DatabaseError:
+            return response_base(code=ErrorCode.AUTH_STORE_UNAVAILABLE)
         if not session:
             return response_base(
                 None,
@@ -32,7 +36,6 @@ def bearer_required(view):
                 status=401,
             )
 
-        user = get_user_model().objects.filter(id=session.user_id, is_active=True).first()
         if user is None:
             return response_base(
                 None,

@@ -1,6 +1,8 @@
 """Pydantic models and contracts shared by API validation and OpenAPI."""
 
 from typing import Annotated, Any, ClassVar, Generic, Literal, TypeVar
+from datetime import datetime
+from uuid import UUID
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -56,6 +58,36 @@ class RequestSchema(Schema):
             if field in fields:
                 return code
         return ErrorCode.INVALID_ARGUMENT
+
+
+class LoginHeaders(Schema):
+    device_id: Annotated[str, StringConstraints(min_length=1, max_length=128,
+                                               pattern=r"^[A-Za-z0-9._:-]+$")]
+    platform: Annotated[str, StringConstraints(max_length=64, pattern=r"^[^\x00-\x1f\x7f]*$")] = ""
+
+
+class DeviceListQuery(Schema):
+    page: int = Field(default=1, ge=1, le=1000000, strict=False)
+    page_size: int = Field(default=20, ge=1, le=100, strict=False)
+
+
+class DeviceInfo(Schema):
+    id: UUID = Field(description="设备记录 ID，用于删除接口；不是客户端 X-Device-ID")
+    device_id: str
+    platform: str
+    client_ip: str | None
+    created_at: datetime
+    login_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    is_current: bool
+
+
+class DeviceListData(Schema):
+    items: list[DeviceInfo]
+    total: int
+    page: int
+    page_size: int
 
 
 class PasswordLoginRequest(RequestSchema):
@@ -186,6 +218,14 @@ class LogoutResponse(ResponseBase[None]):
     pass
 
 
+class DeviceListResponse(ResponseBase[DeviceListData]):
+    pass
+
+
+class DeviceDeleteResponse(ResponseBase[None]):
+    pass
+
+
 class ErrorResponse(ResponseBase[None]):
     pass
 
@@ -231,7 +271,7 @@ class EmailCodeRecord(Schema):
 
 
 class Endpoint(Schema):
-    method: Literal["get", "post"] = "post"
+    method: Literal["get", "post", "delete"] = "post"
     operation_id: str
     summary: str
     request: type[BaseModel] | None = None
@@ -240,12 +280,20 @@ class Endpoint(Schema):
     description: str = ""
     errors: dict[int, str] = Field(default_factory=dict)
     tag: str = "认证"
+    path_parameters: dict[str, str] = Field(default_factory=dict)
+
+    def url(self, route, *, template=False):
+        path = reverse(route, kwargs=self.path_parameters or None)
+        if template:
+            for name, value in self.path_parameters.items():
+                path = path.replace(value, "{" + name + "}")
+        return path
 
 
 PROTECTED_ERRORS = {
     401: "40102：令牌无效或过期；40103：用户不存在或停用",
     405: "40501：请求方法不支持（通过认证后）",
-    503: "50302：认证缓存不可用",
+    503: "50302：认证缓存不可用；50303：会话存储不可用",
 }
 INPUT_ERRORS = {
     400: "40001：请求体不是 JSON 对象；40002：必填参数为空或无效",
@@ -259,9 +307,10 @@ ENDPOINTS = {
     "auth-login": Endpoint(operation_id="login", summary="登录", request=LoginRequest,
                            response=LoginResponse, public=True,
                            description="支持 username + password，或 email + email_code 两种登录方式。username + password 中的 password 必须是客户端生成的 sha256$ 加 64 位小写 SHA-256 摘要。",
-                           errors={**INPUT_ERRORS, 401: "40101：用户名或密码错误；40103：用户不存在或已停用；40105：邮箱验证码无效",
+                           errors={**INPUT_ERRORS, 400: "40001：JSON 无效；40002：参数无效；40003：密码格式无效；40006：X-Device-ID 缺失或无效",
+                                   401: "40101：用户名或密码错误；40103：用户不存在或已停用；40105：邮箱验证码无效",
                                    429: "42902：密码登录失败次数过多，请 1 分钟后重试",
-                                   503: "50302：认证缓存不可用"}),
+                                   503: "50302：认证缓存不可用；50303：会话存储不可用"}),
     "auth-email-send": Endpoint(operation_id="emailSend", summary="发送邮箱验证码",
                                 request=EmailSendRequest, response=EmailSendResponse, public=True,
                                 description="发送邮箱验证码前必须提交同一 session 获取的图形验证码 captcha（或 captcha_code）。字母不区分大小写。通过 SMTP SSL 465 发送 HTML 邮件。同一邮箱 30 秒内只能发送一次。",
@@ -272,7 +321,7 @@ ENDPOINTS = {
                              response=RefreshResponse, public=True,
                              description="refresh_token 只能使用一次；成功后旧 access/refresh token 均失效。",
                              errors={**INPUT_ERRORS, 401: "40104：refresh_token 无效或已过期",
-                                     503: "50302：认证缓存不可用"}),
+                                     503: "50302：认证缓存不可用；50303：会话存储不可用"}),
     "auth-change-password": Endpoint(operation_id="changePassword", summary="修改密码",
                                      request=ChangePasswordRequest, response=ChangePasswordResponse,
                                      description="需要 Bearer access_token。验证码发送到当前账号邮箱；password 必须是客户端计算的 sha256$ 摘要，服务端使用 Django set_password 保存。",
@@ -293,6 +342,13 @@ ENDPOINTS = {
     "auth-logout": Endpoint(operation_id="logout", summary="退出登录", response=LogoutResponse,
                             errors=PROTECTED_ERRORS,
                             description="撤销当前 access_token 及其配对的 refresh_token。"),
+    "auth-devices": Endpoint(method="get", operation_id="listDevices", summary="我的登录设备",
+                              response=DeviceListResponse, errors={**PROTECTED_ERRORS, 400: "40002：分页参数无效"},
+                              description="仅返回当前用户尚未过期的 API 登录设备。is_current 根据 Bearer token 判断；last_seen_at 最多每 60 秒更新。"),
+    "auth-device-delete": Endpoint(method="delete", operation_id="deleteDevice", summary="踢出登录设备",
+                                    response=DeviceDeleteResponse, errors={**PROTECTED_ERRORS, 404: "40401：设备不存在或不属于当前用户"},
+                                    path_parameters={"device_id": "00000000-0000-0000-0000-000000000000"},
+                                    description="使用设备列表返回的记录 id。删除后该设备的 access/refresh token 立即失效；允许删除当前设备。其他用户的设备不可删除。"),
 }
 
 
@@ -334,6 +390,25 @@ def build_schema():
                     "该值仅用于传递会话，登录仍需提交密码或邮箱验证码。"
                 ),
             }]
+            operation["parameters"].extend([
+                {"name": "X-Device-ID", "in": "header", "required": True,
+                 "schema": LoginHeaders.model_json_schema()["properties"]["device_id"],
+                 "description": "客户端生成并持久保存的设备标识，建议 UUID；同一用户同一标识重新登录会替换旧 token。"},
+                {"name": "X-Platform", "in": "header", "required": False,
+                 "schema": LoginHeaders.model_json_schema()["properties"]["platform"],
+                 "description": "客户端平台，如 windows/android/ios；仅作为展示信息。"},
+            ])
+        if route == "auth-devices":
+            operation["parameters"] = [
+                {"name": name, "in": "query", "required": False, "schema": schema}
+                for name, schema in DeviceListQuery.model_json_schema()["properties"].items()
+            ]
+        if endpoint.path_parameters:
+            operation["parameters"] = [
+                {"name": name, "in": "path", "required": True,
+                 "schema": {"type": "string", "format": "uuid"}, "description": "设备列表中的记录 id"}
+                for name in endpoint.path_parameters
+            ]
         if endpoint.request:
             operation["requestBody"] = {"required": True, "content": {
                 "application/json": {"schema": refs[(endpoint.request, "validation")]},
@@ -354,7 +429,7 @@ def build_schema():
                     result="deny", expire_at=0, acl=[],
                 ).model_dump(mode="json")},
             }
-        paths[reverse(route)] = {endpoint.method: operation}
+        paths[endpoint.url(route, template=True)] = {endpoint.method: operation}
     # CAPTCHA returns a binary image directly, outside the JSON model adapter.
     paths[reverse("auth-captcha")] = {"get": {
         "operationId": "captcha",

@@ -13,6 +13,9 @@ class ErrorCode(IntEnum):
     PASSWORD_INVALID = 40003
     EMAIL_INVALID = 40004
     CAPTCHA_INVALID = 40005
+    DEVICE_ID_INVALID = 40006
+    DEVICE_NOT_FOUND = 40401
+    AUTH_STORE_UNAVAILABLE = 50303
     METHOD_NOT_ALLOWED = 40501
 
     INVALID_CREDENTIALS = 40101
@@ -34,6 +37,9 @@ ERROR_MESSAGES = {
     ErrorCode.PASSWORD_INVALID: "密码必须是 sha256$ 加前缀的 64 位十六进制摘要",
     ErrorCode.EMAIL_INVALID: "邮箱格式无效",
     ErrorCode.CAPTCHA_INVALID: "图形验证码错误或已过期",
+    ErrorCode.DEVICE_ID_INVALID: "请携带有效的 X-Device-ID：1 至 128 位字母、数字、点、下划线、冒号或连字符",
+    ErrorCode.DEVICE_NOT_FOUND: "登录设备不存在或不属于当前用户",
+    ErrorCode.AUTH_STORE_UNAVAILABLE: "会话存储暂时不可用，请稍后重试",
     ErrorCode.METHOD_NOT_ALLOWED: "请求方法不支持",
     ErrorCode.INVALID_CREDENTIALS: "用户名或密码错误",
     ErrorCode.TOKEN_INVALID: "access_token 无效或已过期",
@@ -70,7 +76,9 @@ def http_status(code):
         return 429
     if normalized == ErrorCode.EMAIL_ALREADY_EXISTS:
         return 409
-    if normalized in {ErrorCode.EMAIL_SEND_FAILED, ErrorCode.AUTH_CACHE_UNAVAILABLE}:
+    if normalized == ErrorCode.DEVICE_NOT_FOUND:
+        return 404
+    if normalized in {ErrorCode.EMAIL_SEND_FAILED, ErrorCode.AUTH_CACHE_UNAVAILABLE, ErrorCode.AUTH_STORE_UNAVAILABLE}:
         return 503
     if normalized in {
         ErrorCode.INVALID_CREDENTIALS,

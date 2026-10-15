@@ -201,6 +201,7 @@ python -m uvicorn config.asgi:application --reload --lifespan off
 文档与 JSON 无需登录即可访问；接口本身仍执行原有的认证检查。
 
 1. 展开 `POST /api/auth/login`，点击 **Try it out**，输入用户名（或邮箱）及客户端计算出的 `sha256$...` 密码摘要，点击 **Execute**。
+   登录必须填写 `X-Device-ID` 请求头（建议使用客户端持久保存的 UUID），可选 `X-Platform`。
 2. 复制响应的 `data.access_token`，点击页面的 **Authorize**，仅粘贴 token，无需添加 `Bearer ` 前缀。
 3. 即可调试 `/api`、`/api/auth/me`、`/api/auth/logout`；MQTT 鉴权需要将 token 填入 JSON 请求体。
 4. 刷新令牌后需用新 access token 重新 **Authorize**；刷新页面不会保留授权。
@@ -247,11 +248,18 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 | POST | `/api/auth/mqtt-auth` | `{"access_token": "..."}`，返回 MQTT broker 所需的 allow/deny 与 ACL |
 | GET | `/api/auth/me` | Header `Authorization: Bearer <access_token>`，返回当前用户信息 |
 | POST | `/api/auth/logout` | Header `Authorization: Bearer <access_token>`，撤销当前会话 |
+| GET | `/api/auth/devices` | Bearer 登录后分页查看自己的登录设备，标记当前设备 |
+| DELETE | `/api/auth/devices/{device_id}` | Bearer 登录后删除设备列表中的记录 `id`，踢出该设备 |
 | GET | `/api` | 需要 Bearer access token 的示例受保护接口 |
 
 登录响应只返回 token 信息，不包含用户对象。`access_token` 统一使用 `access_` 前缀，
 `refresh_token` 统一使用 `refresh_` 前缀。登录和刷新返回的 `refresh_token` 为单次使用令牌；
 刷新成功后旧的 access/refresh token 会失效。
+
+API 两种登录方式均必须携带 `X-Device-ID`。同一用户、同一设备重新登录会替换该设备旧 token；
+退出或删除设备后，该设备的 access/refresh token 均失效。Django 管理后台网页登录不要求设备 ID、
+也不记录为 API 设备。部署需运行 `python manage.py migrate`，升级前的 API token 需要重新登录。
+完整接口、数据结构、并发处理、MQTT 适用范围及部署步骤见 [登录设备管理](docs/login-devices.md)。
 
 密码登录或邮箱验证码登录连续失败 5 次后，会分别锁定对应登录标识 1 分钟，锁定期间返回业务码 `42902`。
 

@@ -37,7 +37,7 @@ class ApiContractTests(SimpleTestCase):
         schema = response.json()
         self.assertEqual(schema, build_schema())
         self.assertEqual(schema['openapi'], '3.1.0')
-        self.assertEqual(set(schema['paths']), {reverse(name) for name in ENDPOINTS} | {reverse('auth-captcha')})
+        self.assertEqual(set(schema['paths']), {endpoint.url(name, template=True) for name, endpoint in ENDPOINTS.items()} | {reverse('auth-captcha')})
 
         def check_refs(value):
             if isinstance(value, dict):
@@ -54,7 +54,7 @@ class ApiContractTests(SimpleTestCase):
         check_refs(schema)
         components = schema['components']['schemas']
         for name, endpoint in ENDPOINTS.items():
-            operation = schema['paths'][reverse(name)][endpoint.method]
+            operation = schema['paths'][endpoint.url(name, template=True)][endpoint.method]
             response_ref = operation['responses']['200']['content']['application/json']['schema']['$ref']
             generated = endpoint.response.model_json_schema(
                 mode='serialization', ref_template='#/components/schemas/{model}',
@@ -92,6 +92,17 @@ class ApiContractTests(SimpleTestCase):
             with self.subTest(extra=extra), self.assertRaises(ValidationError):
                 LoginRequest.model_validate({'username': 'alice', 'password': password, **extra})
 
+    def test_device_management_is_documented_with_login_header_and_delete_path(self):
+        paths = self.client.get('/api/openapi.json').json()['paths']
+        headers = {p['name']: p for p in paths['/api/auth/login']['post']['parameters']}
+        self.assertTrue(headers['X-Device-ID']['required'])
+        self.assertEqual(headers['X-Device-ID']['schema']['maxLength'], 128)
+        self.assertIn('get', paths['/api/auth/devices'])
+        deletion = paths['/api/auth/devices/{device_id}']['delete']
+        self.assertNotIn('requestBody', deletion)
+        self.assertIn('404', deletion['responses'])
+        self.assertEqual(deletion['parameters'][0]['schema']['format'], 'uuid')
+
     def test_output_validation_rejects_invalid_response_data(self):
         @api_endpoint('auth-me')
         def broken_view(request):
@@ -116,7 +127,7 @@ class RequestValidationTests(TestCase):
 
     def setUp(self):
         cache.clear()
-        self.pair = issue_tokens(self.user.pk)
+        self.pair = issue_tokens(self.user.pk, device_id="schema-device")
         self.auth = {'HTTP_AUTHORIZATION': 'Bearer ' + self.pair.access_token}
 
     def post(self, route, body):
@@ -187,7 +198,7 @@ class RequestValidationTests(TestCase):
     def test_method_errors_preserve_mqtt_contract(self):
         for route, endpoint in ENDPOINTS.items():
             method = self.client.get if endpoint.method == 'post' else self.client.post
-            response = method(reverse(route), **self.auth)
+            response = method(endpoint.url(route), **self.auth)
             if route == 'mqtt-auth':
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.json()['result'], 'deny')
