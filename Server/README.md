@@ -224,6 +224,10 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 
 `code` 为业务码：`200` 表示成功；错误码由 `config/error.py` 统一维护，使用五位数字。
 
+`/api/auth/login` 支持通过 `X-Sessionid` 请求头传递 `/api/auth/captcha` 返回的会话 ID，
+也支持原有的 `sessionid` Cookie；两者同时存在时优先使用 Cookie。
+会话 ID 不替代登录凭据，仍需提交密码或邮箱验证码。
+
 每条请求都会由 `RequestIdMiddleware` 生成 UUID 请求标识，handler 可通过
 `request.request_id` 或 `config.context.get_request_context()` 读取。中间件还会将
 `config.utils.get_client_ip(request)` 的结果保存为 `client_ip`，并读取 `X-Device-ID`、

@@ -324,6 +324,16 @@ def build_schema():
         }
         if endpoint.public:
             operation["security"] = []
+        if route == "auth-login":
+            operation["parameters"] = [{
+                "name": "X-Sessionid", "in": "header", "required": False,
+                "schema": {"type": "string"},
+                "description": (
+                    "可填写 /api/auth/captcha 返回的 X-sessionid，以加载同一 Django session。"
+                    f"同时携带 {settings.SESSION_COOKIE_NAME} Cookie 时优先使用 Cookie。"
+                    "该值仅用于传递会话，登录仍需提交密码或邮箱验证码。"
+                ),
+            }]
         if endpoint.request:
             operation["requestBody"] = {"required": True, "content": {
                 "application/json": {"schema": refs[(endpoint.request, "validation")]},

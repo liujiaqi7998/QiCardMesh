@@ -67,7 +67,7 @@ SIMPLEUI_ANALYSIS = False
 MIDDLEWARE = [
     'qicardmesh.middleware.RequestIdMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'qicardmesh.middleware.HeaderSessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'qicardmesh.middleware.DisableCsrfChecksMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',

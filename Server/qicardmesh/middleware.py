@@ -1,5 +1,8 @@
 import uuid
 
+from django.conf import settings
+from django.contrib.sessions.middleware import SessionMiddleware
+from django.urls import reverse
 from django.utils.deprecation import MiddlewareMixin
 
 from config.context import (
@@ -9,6 +12,21 @@ from config.context import (
     set_request_context,
 )
 from config.utils import get_client_ip
+
+
+class HeaderSessionMiddleware(SessionMiddleware):
+    """Allow the login endpoint to load a session from X-Sessionid."""
+
+    def process_request(self, request):
+        super().process_request(request)
+        if settings.SESSION_COOKIE_NAME in request.COOKIES:
+            return
+        login_path = reverse("auth-login")
+        if request.path_info not in (login_path, login_path + "/"):
+            return
+        session_id = request.headers.get("X-Sessionid", "").strip()
+        if session_id:
+            request.session = self.SessionStore(session_id)
 
 
 class DisableCsrfChecksMiddleware(MiddlewareMixin):
