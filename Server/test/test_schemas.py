@@ -37,7 +37,7 @@ class ApiContractTests(SimpleTestCase):
         schema = response.json()
         self.assertEqual(schema, build_schema())
         self.assertEqual(schema['openapi'], '3.1.0')
-        self.assertEqual(set(schema['paths']), {reverse(name) for name in ENDPOINTS})
+        self.assertEqual(set(schema['paths']), {reverse(name) for name in ENDPOINTS} | {reverse('auth-captcha')})
 
         def check_refs(value):
             if isinstance(value, dict):
@@ -64,6 +64,20 @@ class ApiContractTests(SimpleTestCase):
         self.assertEqual(set(components[email_ref.rsplit('/', 1)[1]]['properties']), {'email'})
         self.assertEqual(components['ChangePasswordResponse']['properties']['data']['type'], 'null')
         self.assertEqual(self.client.get('/api/docs/').status_code, 200)
+
+    @override_settings(CAPTCHA_TTL=120, SESSION_COOKIE_NAME='custom_session')
+    def test_captcha_documents_binary_response_and_session_flow(self):
+        operation = self.client.get('/api/openapi.json').json()['paths'][reverse('auth-captcha')]['get']
+        self.assertEqual(operation['security'], [])
+        self.assertNotIn('requestBody', operation)
+        self.assertEqual(operation['responses']['200']['content'], {
+            'image/png': {'schema': {'type': 'string', 'format': 'binary'}},
+        })
+        self.assertIn('custom_session', operation['description'])
+        self.assertIn('120 秒', operation['description'])
+        self.assertIn('/api/auth/email-send', operation['description'])
+        self.assertIn('Set-Cookie', operation['responses']['200']['headers'])
+        self.assertIn('405', operation['responses'])
 
     def test_login_union_normalizes_credentials_and_rejects_mixed_modes(self):
         password = hash_password_for_api('test-password')

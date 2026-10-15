@@ -2,6 +2,7 @@
 
 from typing import Annotated, Any, ClassVar, Generic, Literal, TypeVar
 
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import validate_email
 from django.urls import reverse
@@ -344,6 +345,40 @@ def build_schema():
                 ).model_dump(mode="json")},
             }
         paths[reverse(route)] = {endpoint.method: operation}
+    # CAPTCHA returns a binary image directly, outside the JSON model adapter.
+    paths[reverse("auth-captcha")] = {"get": {
+        "operationId": "captcha",
+        "summary": "获取图形验证码",
+        "tags": ["认证"],
+        "security": [],
+        "description": (
+            "无需登录，无请求参数。直接返回 PNG 图片，不使用 code/message/data 包装。"
+            "验证码为 5 位数字与字母组合，字母不区分大小写。"
+            f"有效期为 {settings.CAPTCHA_TTL} 秒；重新获取会替换当前 session 的旧验证码。"
+            f"请保存响应设置的 session Cookie（{settings.SESSION_COOKIE_NAME}），"
+            "随后携带同一 Cookie 调用 POST /api/auth/email-send，"
+            '提交 {"email": "ex@a.com", "captcha": "a2B3c"}（也支持 captcha_code 字段）。'
+            "图形验证码校验成功或失败后均会消耗，请重新获取图片再重试。"
+            "Swagger UI 同源调试时浏览器会自动保存并携带 Cookie。"
+        ),
+        "responses": {
+            "200": {
+                "description": "图形验证码 PNG 图片",
+                "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}},
+                "headers": {
+                    "Set-Cookie": {
+                        "description": f"设置或更新 session Cookie：{settings.SESSION_COOKIE_NAME}；后续发送邮件时需携带。",
+                        "schema": {"type": "string"},
+                    },
+                    "Cache-Control": {
+                        "description": "禁止缓存验证码图片",
+                        "schema": {"type": "string"},
+                    },
+                },
+            },
+            "405": {"description": "只支持 GET；返回空响应体，不使用 JSON 业务错误包装。"},
+        },
+    }}
     return {
         "openapi": "3.1.0",
         "info": {"title": "QiCardMesh API", "version": "1.0.0",
