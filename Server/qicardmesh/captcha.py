@@ -80,6 +80,10 @@ def image(request):
     }
     request.session.modified = True
     response = HttpResponse(_render(code), content_type="image/png")
+    # A new session has no ID until saved; expose the same ID as the cookie.
+    if request.session.session_key is None:
+        request.session.save()
+    response["X-Sessionid"] = request.session.session_key
     response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
 

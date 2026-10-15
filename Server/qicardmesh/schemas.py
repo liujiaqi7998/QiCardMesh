@@ -356,6 +356,7 @@ def build_schema():
             "验证码为 5 位数字与字母组合，字母不区分大小写。"
             f"有效期为 {settings.CAPTCHA_TTL} 秒；重新获取会替换当前 session 的旧验证码。"
             f"请保存响应设置的 session Cookie（{settings.SESSION_COOKIE_NAME}），"
+            "响应头 X-sessionid 同时返回相同的会话 ID。"
             "随后携带同一 Cookie 调用 POST /api/auth/email-send，"
             '提交 {"email": "ex@a.com", "captcha": "a2B3c"}（也支持 captcha_code 字段）。'
             "图形验证码校验成功或失败后均会消耗，请重新获取图片再重试。"
@@ -366,6 +367,10 @@ def build_schema():
                 "description": "图形验证码 PNG 图片",
                 "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}},
                 "headers": {
+                    "X-sessionid": {
+                        "description": f"与 {settings.SESSION_COOKIE_NAME} Cookie 相同的会话 ID。",
+                        "schema": {"type": "string"},
+                    },
                     "Set-Cookie": {
                         "description": f"设置或更新 session Cookie：{settings.SESSION_COOKIE_NAME}；后续发送邮件时需携带。",
                         "schema": {"type": "string"},

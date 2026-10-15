@@ -77,6 +77,7 @@ class ApiContractTests(SimpleTestCase):
         self.assertIn('120 秒', operation['description'])
         self.assertIn('/api/auth/email-send', operation['description'])
         self.assertIn('Set-Cookie', operation['responses']['200']['headers'])
+        self.assertIn('X-sessionid', operation['responses']['200']['headers'])
         self.assertIn('405', operation['responses'])
 
     def test_login_union_normalizes_credentials_and_rejects_mixed_modes(self):

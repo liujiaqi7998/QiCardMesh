@@ -44,6 +44,25 @@ class EmailCodeTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         return re.search(r'\b[0-9]{6}\b', mail.outbox[-1].body).group()
 
+    def test_captcha_session_header_matches_cookie_for_new_and_existing_sessions(self):
+        first = self.client.get('/api/auth/captcha')
+        session_id = first['X-sessionid']
+        self.assertTrue(session_id)
+        self.assertEqual(session_id, first.cookies[settings.SESSION_COOKIE_NAME].value)
+        self.assertEqual(session_id, self.client.session.session_key)
+        self.assertIn(CAPTCHA_SESSION_KEY, self.client.session)
+
+        refreshed = self.client.get('/api/auth/captcha/')
+        self.assertEqual(refreshed['X-sessionid'], session_id)
+        self.assertEqual(refreshed['X-sessionid'], refreshed.cookies[settings.SESSION_COOKIE_NAME].value)
+
+    def test_captcha_replaces_invalid_session_cookie_and_returns_new_id(self):
+        self.client.cookies[settings.SESSION_COOKIE_NAME] = 'a' * 32
+        response = self.client.get('/api/auth/captcha')
+        self.assertNotEqual(response['X-sessionid'], 'a' * 32)
+        self.assertEqual(response['X-sessionid'], response.cookies[settings.SESSION_COOKIE_NAME].value)
+        self.assertIn(CAPTCHA_SESSION_KEY, self.client.session)
+
     def login(self, code, email='alice@example.com'):
         return self.post('/api/auth/login', {'email': email, 'email_code': code})
 

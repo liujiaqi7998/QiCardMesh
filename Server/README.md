@@ -256,7 +256,8 @@ OpenAPI JSON 端点不依赖 CDN，也不依赖 Redis。实际认证接口仍需
 同一邮箱 30 秒内只能发送一次，最多尝试 5 次。SMTP SSL 465 配置读取 `SMTP_HOST`、
 `SMTP_USERNAME`、`SMTP_PASSWORD` 和 `SMTP_FROM_EMAIL`。
 
-调用 `/api/auth/captcha` 获取 PNG 图形验证码后，将同一 session 中的验证码通过
+调用 `/api/auth/captcha` 获取 PNG 图形验证码时，响应会同时设置 `sessionid` Cookie，
+并通过 `X-sessionid` 响应头返回相同的会话 ID。随后携带同一 Cookie，将验证码通过
 `captcha`（也兼容 `captcha_code`）提交给 `/api/auth/email-send`。验证码为 5 位数字和字母组合，
 字母不区分大小写，验证成功或失败后都会消耗当前验证码。
 
